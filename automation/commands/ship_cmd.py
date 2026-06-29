@@ -66,7 +66,7 @@ def _handle(args: argparse.Namespace) -> CommandResult:
     summary = "\n".join(
         [
             "Release automation complete.",
-            f"   Version    : {version.semver} (build {version.build_number}) — {version.release_name}",
+            f"   Version    : {version.semver} (build {version.build_number}) - {version.release_name}",
             f"   Commit     : {commit} on {branch}",
             f"   Push       : {'verified' if pushed else 'skipped (--no-push)'}",
             f"   Repository : {repo_url}",
