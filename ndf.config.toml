@@ -1,0 +1,89 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# QVault project override for the bundled NDF automation configuration.
+# Only the keys that differ from automation/config/ndf.config.toml are set here;
+# values are deep-merged over the bundled defaults (see automation/core/config.py).
+# ─────────────────────────────────────────────────────────────────────────────
+
+[project]
+name = "QVault"
+repository = "https://github.com/JanaPonnusamy/QVault"
+default_branch = "main"
+
+[version]
+release_name = "QVault"
+initial_major = 0
+initial_minor = 5
+initial_patch = 0
+
+# Intelligent commit grouping for the QVault repository layout.
+[github.groups]
+backend = ["backend/"]
+frontend = ["frontend/"]
+automation = ["automation/"]
+docs = ["docs/"]
+database = ["database/"]
+config = [".gitignore", "ndf.config.toml", "config/"]
+root = [
+    "VERSION.md", "CHANGELOG.md", "RELEASE_NOTES.md", "PROJECT_STATUS.md",
+    "Project_Master_Document.md", "Project_Todo.md", "CLAUDE.md", "README.md",
+]
+
+[github.group_types]
+database = "chore"
+
+# Project module registry — drives PROJECT_STATUS.md (the project dashboard).
+[[modules.items]]
+name = "Admin Portal + Auth + RBAC"
+status = "Complete"
+completion = 100
+owner = "Platform"
+milestone = "Foundation"
+
+[[modules.items]]
+name = "YouTube Acquisition + Question Extraction"
+status = "Complete"
+completion = 100
+owner = "Acquisition"
+milestone = "Sources"
+
+[[modules.items]]
+name = "NCERT Acquisition Agent"
+status = "Complete"
+completion = 100
+owner = "Acquisition"
+milestone = "Sources"
+
+[[modules.items]]
+name = "Notification System"
+status = "Complete"
+completion = 100
+owner = "Platform"
+milestone = "Foundation"
+
+[[modules.items]]
+name = "Knowledge Extraction Engine"
+status = "Complete"
+completion = 100
+owner = "Knowledge"
+milestone = "Knowledge"
+
+[[modules.items]]
+name = "Knowledge Mapping Engine"
+status = "Complete"
+completion = 100
+owner = "Knowledge"
+milestone = "Knowledge"
+
+[[modules.items]]
+name = "Release Automation (NDF)"
+status = "Complete"
+completion = 100
+owner = "Platform"
+milestone = "Governance"
+
+[[modules.items]]
+name = "PDF / Image Acquisition Sources"
+status = "Planned"
+completion = 0
+owner = "Acquisition"
+milestone = "Sources"
