@@ -4,18 +4,18 @@
 > The fenced `toml` block below is the machine-readable source of truth. Edit via
 > `python -m automation.version bump <major|minor|patch|build>`.
 
-**Current Version:** `0.5.0`  ·  **Build:** `3`  ·  **Release:** QVault
+**Current Version:** `0.5.0`  ·  **Build:** `4`  ·  **Release:** QVault
 
 ```toml
 [version]
 major = 0
 minor = 5
 patch = 0
-build_number = 3
+build_number = 4
 build_date = "2026-06-29"
 release_name = "QVault"
 developer = "QVault Automation"
-git_commit = "7a10d87"
+git_commit = "078edca"
 branch = "main"
 ```
 
@@ -24,9 +24,9 @@ branch = "main"
 | Major | 0 |
 | Minor | 5 |
 | Patch | 0 |
-| Build Number | 3 |
+| Build Number | 4 |
 | Build Date | 2026-06-29 |
 | Release Name | QVault |
 | Developer | QVault Automation |
-| Git Commit | 7a10d87 |
+| Git Commit | 078edca |
 | Branch | main |
