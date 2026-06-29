@@ -30,7 +30,7 @@ class GitProvider:
         self._log = get_logger("providers.git")
 
     # ---- internal --------------------------------------------------------
-    def _run(self, args: list[str], *, mutating: bool = False) -> str:
+    def _run(self, args: list[str], *, mutating: bool = False, strip: bool = True) -> str:
         cmd = ["git", *args]
         if mutating:
             self._log.info("git %s", " ".join(args))
@@ -45,7 +45,9 @@ class GitProvider:
         except subprocess.CalledProcessError as exc:
             detail = (exc.stderr or exc.stdout or "").strip()
             raise GitError(f"git {' '.join(args)} failed: {detail}") from exc
-        return proc.stdout.strip()
+        # Porcelain status relies on the leading XY columns, so callers that need
+        # column-accurate output opt out of stripping (which would drop a leading space).
+        return proc.stdout.strip() if strip else proc.stdout
 
     # ---- queries ---------------------------------------------------------
     def is_repository(self) -> bool:
@@ -74,7 +76,7 @@ class GitProvider:
 
     def changes(self) -> list[GitChange]:
         """Return working-tree + staged changes via ``git status --porcelain``."""
-        raw = self._run(["status", "--porcelain"])
+        raw = self._run(["status", "--porcelain"], strip=False)
         changes: list[GitChange] = []
         for line in raw.splitlines():
             if not line.strip():
