@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+pydantic>=2
+pydantic-settings
+SQLAlchemy>=2
+python-multipart
+PyJWT
+bcrypt
+yt-dlp
+rapidocr-onnxruntime
+curl_cffi
+PyMuPDF

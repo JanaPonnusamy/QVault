@@ -1,0 +1,161 @@
+import csv
+import io
+import json
+import sqlite3
+import tempfile
+from pathlib import Path
+
+from sqlalchemy.orm import Session
+
+from app.config.settings import settings
+from app.core import worker
+from app.integrations.ocr import OCR
+from app.models.extraction import ExtractionJob, Frame, Question
+from app.repositories.extraction_repository import ExtractionRepository
+
+
+class ExtractionService:
+    def __init__(self, db: Session):
+        self.db = db
+        self.repo = ExtractionRepository(db)
+
+    def create_job(self, url: str, user_id: int | None) -> ExtractionJob:
+        job = ExtractionJob(url=url.strip(), status="pending", stage="Queued", created_by=user_id)
+        self.repo.add_job(job)
+        worker.submit_job(job.id)
+        return job
+
+    def get_job(self, job_id: int) -> ExtractionJob | None:
+        return self.repo.get_job(job_id)
+
+    def list_jobs(self) -> list[ExtractionJob]:
+        return self.repo.list_jobs()
+
+    def delete_job(self, job: ExtractionJob) -> None:
+        self.repo.delete_job(job)
+
+    def list_frames(self, job_id: int) -> list[Frame]:
+        return self.repo.list_frames(job_id)
+
+    def frame_path(self, frame: Frame) -> Path:
+        return settings.jobs_dir / str(frame.job_id) / "frames" / frame.filename
+
+    def run_ocr(self, frame: Frame) -> Question:
+        text = OCR.read_image(str(self.frame_path(frame)))
+        question = Question(
+            job_id=frame.job_id,
+            frame_id=frame.id,
+            text=text,
+            timestamp=frame.timestamp,
+        )
+        return self.repo.add_question(question)
+
+    def list_questions(self, job_id: int) -> list[Question]:
+        return self.repo.list_questions(job_id)
+
+    def update_question(
+        self,
+        question: Question,
+        text: str | None = None,
+        options: list[str] | None = None,
+        status: str | None = None,
+    ) -> Question:
+        if text is not None:
+            question.text = text
+        if options is not None:
+            question.options = json.dumps(options)
+        if status is not None:
+            question.status = status
+        self.repo.save()
+        self.db.refresh(question)
+        return question
+
+    def delete_question(self, question: Question) -> None:
+        self.repo.delete_question(question)
+
+    def _rows(self, job: ExtractionJob) -> list[dict]:
+        rows = []
+        for q in self.repo.list_questions(job.id):
+            try:
+                options = json.loads(q.options) if q.options else []
+            except json.JSONDecodeError:
+                options = []
+            rows.append(
+                {
+                    "id": q.id,
+                    "text": q.text,
+                    "options": options,
+                    "timestamp": q.timestamp,
+                    "source": q.source,
+                    "status": q.status,
+                    "frame_start": q.frame_start,
+                    "frame_end": q.frame_end,
+                    "ocr_confidence": q.ocr_confidence,
+                    "frame_confidence": q.frame_confidence,
+                    "merge_confidence": q.merge_confidence,
+                    "overall_confidence": q.overall_confidence,
+                }
+            )
+        return rows
+
+    def export(self, job: ExtractionJob) -> dict:
+        rows = self._rows(job)
+        return {
+            "source": {
+                "url": job.url,
+                "title": job.title,
+                "video_id": job.video_id,
+                "duration": job.duration,
+            },
+            "question_count": len(rows),
+            "questions": rows,
+        }
+
+    def export_csv(self, job: ExtractionJob) -> str:
+        rows = self._rows(job)
+        buffer = io.StringIO()
+        fields = [
+            "id", "text", "options", "timestamp", "source", "status",
+            "frame_start", "frame_end", "ocr_confidence", "frame_confidence",
+            "merge_confidence", "overall_confidence",
+        ]
+        writer = csv.DictWriter(buffer, fieldnames=fields)
+        writer.writeheader()
+        for row in rows:
+            record = dict(row)
+            record["options"] = " | ".join(row["options"])
+            writer.writerow(record)
+        return buffer.getvalue()
+
+    def export_sqlite(self, job: ExtractionJob) -> Path:
+        rows = self._rows(job)
+        tmp = Path(tempfile.gettempdir()) / f"qvault_questions_job_{job.id}.sqlite"
+        if tmp.exists():
+            tmp.unlink()
+        conn = sqlite3.connect(tmp)
+        conn.execute(
+            """
+            CREATE TABLE questions (
+                id INTEGER, job_id INTEGER, text TEXT, options TEXT,
+                timestamp REAL, source TEXT, status TEXT,
+                frame_start INTEGER, frame_end INTEGER,
+                ocr_confidence REAL, frame_confidence REAL,
+                merge_confidence REAL, overall_confidence REAL
+            )
+            """
+        )
+        conn.executemany(
+            "INSERT INTO questions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            [
+                (
+                    r["id"], job.id, r["text"], json.dumps(r["options"]),
+                    r["timestamp"], r["source"], r["status"],
+                    r["frame_start"], r["frame_end"], r["ocr_confidence"],
+                    r["frame_confidence"], r["merge_confidence"], r["overall_confidence"],
+                )
+                for r in rows
+            ],
+        )
+        conn.commit()
+        conn.close()
+        return tmp
