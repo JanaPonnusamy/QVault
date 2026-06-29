@@ -27,6 +27,14 @@ sprint finishes. Keep this file accurate after every sprint (see CLAUDE.md rule 
 
 ## COMPLETED
 
+### Maintenance — Release Automation adapted for QVault (v0.5.0)
+- Reused the bundled `automation/` (NDF) framework — not recreated
+- Root `ndf.config.toml` override: name=QVault, URL=github.com/JanaPonnusamy/QVault, version 0.5.0, commit groups, module registry
+- Comprehensive root `.gitignore` (ignores generated/media/runtime; tracks all source types)
+- One command `python -m automation ship`: version → docs → add → commit → push → verify → display hash/version/URL
+- Fixed latent `git status --porcelain` parse bug in the git provider; genericized NEXORA branding in committed artifacts
+- Git initialized (`main`); remote `origin` = QVault; pushed `main` (verified) + tag `v0.5.0`
+
 ### Sprint 6 — Knowledge Mapping Engine (v0.5.0)
 - Generic hierarchical `knowledge_nodes` table (parent-child, depth, order, materialized path, element provenance)
 - Deterministic tree mapping (no AI): headings → sections, paragraphs/tables/figures → leaves; bookmark + flat fallback strategies
