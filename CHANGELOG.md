@@ -6,10 +6,13 @@ Generated and maintained by the project automation framework.
 ## [0.5.0] - 2026-07-08
 
 ### Added
+- **backend**: sync 6 file(s) in backend (b5d6ded)
 - **frontend**: sync 8 file(s) in frontend (096233a)
 - **backend**: sync 32 file(s) in backend (13d647f)
 
 ### Changed
+- **root**: sync 4 file(s) in root (352bfd9)
+- **automation**: sync 2 file(s) in automation (398bc1e)
 - **root**: sync 5 file(s) in root (3fb01f5)
 - **config**: sync 3 file(s) in config (d6cfcbb)
 - **root**: sync 6 file(s) in root (2af0146)

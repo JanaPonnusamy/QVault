@@ -4,12 +4,15 @@
 
 **Highlights:**
 
+- sync 6 file(s) in backend
 - sync 8 file(s) in frontend
 - sync 32 file(s) in backend
 
 ### Changes
 
 **Changed**
+- sync 4 file(s) in root
+- sync 2 file(s) in automation
 - sync 5 file(s) in root
 - sync 3 file(s) in config
 - sync 6 file(s) in root
@@ -20,6 +23,7 @@
 - Initial commit
 
 **Added**
+- sync 6 file(s) in backend
 - sync 8 file(s) in frontend
 - sync 32 file(s) in backend
 
