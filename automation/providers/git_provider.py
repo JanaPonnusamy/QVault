@@ -95,6 +95,16 @@ class GitProvider:
         except GitError:
             return False
 
+    def fetch(self, remote: str, branch: str) -> None:
+        self._run(["fetch", remote, branch], mutating=True)
+
+    def count_commits(self, range_expr: str) -> int:
+        """Count commits in a revision range, e.g. ``HEAD..FETCH_HEAD`` (0 on error)."""
+        try:
+            return int(self._run(["rev-list", "--count", range_expr]) or "0")
+        except (GitError, ValueError):
+            return 0
+
     def latest_tag(self) -> str:
         try:
             return self._run(["describe", "--tags", "--abbrev=0"])
