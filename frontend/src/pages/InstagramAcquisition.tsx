@@ -310,6 +310,8 @@ export default function InstagramAcquisition() {
                 <ExtractionStrategySelector
                   value={extractionOptions}
                   onChange={setExtractionOptions}
+                  url={url}
+                  estimateEndpoint={`${BASE}/estimate`}
                   disabled={!canExecute}
                 />
                 <button className="btn btn-primary w-100 mt-2" disabled={submitting || !canExecute || !url.trim()}>

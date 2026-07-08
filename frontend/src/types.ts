@@ -30,11 +30,14 @@ export interface CurrentUser extends User {
 
 export type FrameExtractionStrategy = "fixed_interval" | "scene_detection" | "ocr_text_change" | "hybrid";
 
+// null = "every decoded frame" (catches sub-300ms flash content).
+export type SamplingFps = 30 | 15 | 10 | 5 | 2 | 1 | null;
+
 export interface ExtractionOptions {
   strategy: FrameExtractionStrategy;
   interval: number | null;
   scene_threshold: number;
-  sample_interval: number;
+  sampling_fps: SamplingFps;
   max_frames: number | null;
   remove_duplicates: boolean;
   keep_best_quality: boolean;
@@ -46,13 +49,19 @@ export const DEFAULT_EXTRACTION_OPTIONS: ExtractionOptions = {
   strategy: "hybrid",
   interval: null,
   scene_threshold: 0.35,
-  sample_interval: 0.5,
+  sampling_fps: 10,
   max_frames: null,
   remove_duplicates: true,
   keep_best_quality: true,
   ignore_blank: true,
   ignore_blurred: true,
 };
+
+export interface EstimateResponse {
+  duration: number;
+  fps: number;
+  estimated_frames: number;
+}
 
 export interface Job {
   id: number;

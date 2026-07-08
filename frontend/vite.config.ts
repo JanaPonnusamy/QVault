@@ -8,8 +8,8 @@ export default defineConfig({
     proxy: {
       "/api": {
         // 8000 is held by an unrelated process on this machine; QVault's backend
-        // runs on 8003 until 8000 is freed (see CLAUDE.md for the documented default).
-        target: "http://127.0.0.1:8003",
+        // runs on 8004 until 8000 is freed (see CLAUDE.md for the documented default).
+        target: "http://127.0.0.1:8004",
         changeOrigin: true,
       },
     },

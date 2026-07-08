@@ -235,6 +235,8 @@ export default function YouTubeExtractor() {
                 <ExtractionStrategySelector
                   value={extractionOptions}
                   onChange={setExtractionOptions}
+                  url={url}
+                  estimateEndpoint="/api/extractor/estimate"
                   disabled={!canExecute}
                 />
                 <button
