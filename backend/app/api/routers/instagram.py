@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import db_session, require_permission
 from app.api.schemas import (
     AnalyzeSummary,
+    EstimateRequest,
+    EstimateResponse,
     FrameOut,
     InstagramStats,
     JobCreate,
@@ -62,6 +64,17 @@ def create_job(
         raise HTTPException(status_code=400, detail="URL is required")
     options = ExtractionOptions.from_payload(payload)
     return ExtractionService(db).create_job(payload.url, user.id, source=SOURCE, extraction_options=options)
+
+
+@router.post("/estimate", response_model=EstimateResponse)
+def estimate(
+    payload: EstimateRequest,
+    db: Session = Depends(db_session),
+    _: object = Depends(require_permission(f"{MODULE}:execute")),
+):
+    if not payload.url.strip():
+        raise HTTPException(status_code=400, detail="URL is required")
+    return ExtractionService(db).estimate_frames(payload.url, SOURCE, payload.sampling_fps)
 
 
 @router.get("/jobs/{job_id}", response_model=JobOut)

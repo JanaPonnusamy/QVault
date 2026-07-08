@@ -46,6 +46,17 @@ def create_job(
     return ExtractionService(db).create_job(payload.url, user.id, extraction_options=options)
 
 
+@router.post("/estimate", response_model=EstimateResponse)
+def estimate(
+    payload: EstimateRequest,
+    db: Session = Depends(db_session),
+    _: object = Depends(require_permission(f"{MODULE}:execute")),
+):
+    if not payload.url.strip():
+        raise HTTPException(status_code=400, detail="URL is required")
+    return ExtractionService(db).estimate_frames(payload.url, "youtube", payload.sampling_fps)
+
+
 @router.get("/jobs/{job_id}", response_model=JobOut)
 def get_job(
     job_id: int,
