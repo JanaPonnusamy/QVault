@@ -38,6 +38,18 @@ class GitHubSyncService:
         pushed = False
         if push:
             remote = self._config.github.get("remote", "origin")
+            # Integrate any commits already on the remote so the push fast-forwards
+            # instead of being rejected as non-fast-forward.
+            if self._git.remote_branch_exists(remote, branch):
+                try:
+                    self._git.pull_rebase(remote, branch)
+                except Exception:
+                    self._git.rebase_abort()
+                    return CommandResult.failure(
+                        f"Committed {len(commits)} group(s) locally but could not rebase onto "
+                        f"'{remote}/{branch}' (conflicting remote changes). Resolve manually with "
+                        f"'git pull --rebase {remote} {branch}', then re-run — nothing was pushed."
+                    )
             self._git.push(remote, branch)
             pushed = True
 

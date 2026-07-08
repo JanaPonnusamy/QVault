@@ -88,6 +88,13 @@ class GitProvider:
             changes.append(GitChange(status=status, path=path.replace("\\", "/")))
         return changes
 
+    def remote_branch_exists(self, remote: str, branch: str) -> bool:
+        """True when ``branch`` already exists on ``remote`` (avoids pulling a missing ref)."""
+        try:
+            return bool(self._run(["ls-remote", "--heads", remote, branch]).strip())
+        except GitError:
+            return False
+
     def latest_tag(self) -> str:
         try:
             return self._run(["describe", "--tags", "--abbrev=0"])
@@ -123,6 +130,17 @@ class GitProvider:
 
     def pull(self, remote: str, branch: str) -> None:
         self._run(["pull", remote, branch], mutating=True)
+
+    def pull_rebase(self, remote: str, branch: str) -> None:
+        """Rebase local commits on top of ``remote/branch`` so the next push fast-forwards."""
+        self._run(["pull", "--rebase", remote, branch], mutating=True)
+
+    def rebase_abort(self) -> None:
+        """Best-effort recovery: abort an in-progress rebase, ignoring failure."""
+        try:
+            self._run(["rebase", "--abort"], mutating=True)
+        except GitError:
+            pass
 
     def tag(self, name: str, message: str = "") -> None:
         if message:
