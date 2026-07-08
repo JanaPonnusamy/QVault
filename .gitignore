@@ -19,6 +19,9 @@ temp/
 tmp/
 cache/
 
+# --- Local environment overrides ---
+config/.env
+
 # --- Runtime data / artifacts ---
 storage/
 downloads/
