@@ -76,7 +76,7 @@ class JobCreate(BaseModel):
     strategy: str = "hybrid"
     interval: float | None = None
     scene_threshold: float = 0.35
-    sample_interval: float = 0.5
+    sampling_fps: float | None = 10.0
     max_frames: int | None = None
     remove_duplicates: bool = True
     keep_best_quality: bool = True
@@ -90,6 +90,25 @@ class JobCreate(BaseModel):
         if value not in allowed:
             raise ValueError(f"strategy must be one of {sorted(allowed)}")
         return value
+
+    @field_validator("sampling_fps")
+    @classmethod
+    def _valid_sampling_fps(cls, value: float | None) -> float | None:
+        allowed = {None, 30.0, 15.0, 10.0, 5.0, 2.0, 1.0}
+        if value not in allowed:
+            raise ValueError(f"sampling_fps must be one of {sorted(v for v in allowed if v is not None)} or null")
+        return value
+
+
+class EstimateRequest(BaseModel):
+    url: str
+    sampling_fps: float | None = 10.0
+
+
+class EstimateResponse(BaseModel):
+    duration: float
+    fps: float
+    estimated_frames: int
 
 
 class JobOut(BaseModel):

@@ -67,6 +67,23 @@ def log_cookie_source() -> None:
 
 class YtDlp:
     @staticmethod
+    def probe_metadata(url: str) -> dict:
+        """Metadata-only probe (no download) -- used to estimate frame counts
+        before a job runs. Falls back to zeros if the source can't be probed
+        (estimate becomes advisory only; the job itself still runs normally)."""
+        opts = {"quiet": True, "no_warnings": True, "noplaylist": True, "skip_download": True}
+        CookieSource().apply(opts)
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+        except Exception:  # noqa: BLE001
+            return {"duration": 0.0, "fps": 0.0}
+        return {
+            "duration": float(info.get("duration") or 0.0),
+            "fps": float(info.get("fps") or 0.0),
+        }
+
+    @staticmethod
     def download_video(url: str, output_dir: Path) -> dict:
         output_dir.mkdir(parents=True, exist_ok=True)
         opts = {

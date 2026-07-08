@@ -28,12 +28,20 @@ DEFAULT_STRATEGY = "hybrid"
 _WS_RE = re.compile(r"\s+")
 
 
+#: Frame Sampling Mode offered in the UI. None = every decoded frame (catches
+#: sub-300ms flash content); otherwise a target fps. Consumed by Scene
+#: Detection, OCR Text Change and Hybrid -- Fixed Interval keeps its own
+#: dedicated `interval` control and ignores this (unchanged strategy).
+SAMPLING_FPS_OPTIONS: tuple[float | None, ...] = (None, 30.0, 15.0, 10.0, 5.0, 2.0, 1.0)
+DEFAULT_SAMPLING_FPS = 10.0
+
+
 @dataclass
 class ExtractionOptions:
     strategy: str = DEFAULT_STRATEGY
-    interval: float | None = None      # Fixed Interval (seconds); None = auto
-    scene_threshold: float = 0.35      # Scene Detection / Hybrid sensitivity
-    sample_interval: float = 0.5       # OCR Text Change sampling rate
+    interval: float | None = None                  # Fixed Interval (seconds); None = auto
+    scene_threshold: float = 0.35                   # Scene Detection / Hybrid sensitivity
+    sampling_fps: float | None = DEFAULT_SAMPLING_FPS  # Frame Sampling Mode; None = every decoded frame
     max_frames: int | None = None      # None = auto cap, 0 = unlimited, N = hard cap
     remove_duplicates: bool = True
     keep_best_quality: bool = True
@@ -51,7 +59,7 @@ class ExtractionOptions:
             strategy=strategy,
             interval=opts.get("interval"),
             scene_threshold=opts.get("scene_threshold", 0.35),
-            sample_interval=opts.get("sample_interval", 0.5),
+            sampling_fps=opts.get("sampling_fps", DEFAULT_SAMPLING_FPS),
             max_frames=opts.get("max_frames"),
             remove_duplicates=opts.get("remove_duplicates", True),
             keep_best_quality=opts.get("keep_best_quality", True),
@@ -67,7 +75,7 @@ class ExtractionOptions:
             strategy=payload.strategy if payload.strategy in STRATEGIES else DEFAULT_STRATEGY,
             interval=payload.interval,
             scene_threshold=payload.scene_threshold,
-            sample_interval=payload.sample_interval,
+            sampling_fps=payload.sampling_fps,
             max_frames=payload.max_frames,
             remove_duplicates=payload.remove_duplicates,
             keep_best_quality=payload.keep_best_quality,
@@ -79,7 +87,7 @@ class ExtractionOptions:
         return json.dumps({
             "interval": self.interval,
             "scene_threshold": self.scene_threshold,
-            "sample_interval": self.sample_interval,
+            "sampling_fps": self.sampling_fps,
             "max_frames": self.max_frames,
             "remove_duplicates": self.remove_duplicates,
             "keep_best_quality": self.keep_best_quality,
@@ -177,35 +185,43 @@ class FixedIntervalStrategy(FrameExtractionStrategy):
 
 class SceneDetectionStrategy(FrameExtractionStrategy):
     """Extract only when the visual scene changes significantly (new slide,
-    question appears, diagram changes, camera cut)."""
+    question appears, diagram changes, camera cut). `sampling_fps` controls how
+    many decoded frames feed the scene comparison (None = every frame, so a
+    100-300ms flash cut is never skipped between samples)."""
 
     def extract(self, video_path, frames_dir, options, duration):
-        frames = FFmpeg.extract_frames_scene(video_path, frames_dir, options.scene_threshold)
+        frames = FFmpeg.extract_frames_scene(
+            video_path, frames_dir, options.scene_threshold, sample_fps=options.sampling_fps
+        )
         return _prepend_first_frame(video_path, frames_dir, frames, prefix="scene")
 
 
 class OCRTextChangeStrategy(FrameExtractionStrategy):
-    """Sample at a fine interval, OCR each candidate, keep a frame only when
-    its text differs from the previously kept frame's text."""
+    """Frame Sampling stage examines frames at `options.sampling_fps` (None =
+    every decoded frame); OCR each candidate and keep a frame only when its
+    text differs from the previously kept frame's text."""
 
     def extract(self, video_path, frames_dir, options, duration):
         sample_dir = frames_dir / "_sample"
         try:
-            candidates = FFmpeg.extract_frames(video_path, sample_dir, options.sample_interval)
+            candidates = FFmpeg.extract_frames_sampled(video_path, sample_dir, options.sampling_fps)
             return _keep_on_text_change(sample_dir, candidates, frames_dir, prefix="ocrtext")
         finally:
             shutil.rmtree(sample_dir, ignore_errors=True)
 
 
 class HybridStrategy(FrameExtractionStrategy):
-    """Recommended default: scene detection narrows candidates, OCR text-diff
-    drops near-duplicate slides; the shared quality filters (below) then drop
-    blank/blurred frames and collapse any remaining visual duplicates."""
+    """Recommended default: Frame Sampling feeds scene detection (which narrows
+    candidates), OCR text-diff drops near-duplicate slides, and the shared
+    quality filters (below) then drop blank/blurred frames and collapse any
+    remaining visual duplicates."""
 
     def extract(self, video_path, frames_dir, options, duration):
         scene_dir = frames_dir / "_scene"
         try:
-            scene_frames = FFmpeg.extract_frames_scene(video_path, scene_dir, options.scene_threshold)
+            scene_frames = FFmpeg.extract_frames_scene(
+                video_path, scene_dir, options.scene_threshold, sample_fps=options.sampling_fps
+            )
             scene_frames = _prepend_first_frame(video_path, scene_dir, scene_frames, prefix="scene")
             return _keep_on_text_change(
                 scene_dir, scene_frames, frames_dir, prefix="hybrid", collapse_empty_text=False

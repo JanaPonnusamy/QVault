@@ -10,15 +10,34 @@ from sqlalchemy.orm import Session
 from app.config.settings import settings
 from app.core import worker
 from app.integrations.ocr import OCR
+from app.integrations.video_providers import get_provider
 from app.models.extraction import ExtractionJob, Frame, Question
 from app.repositories.extraction_repository import ExtractionRepository
 from app.services.frame_extraction_service import ExtractionOptions
+
+#: Used only for the pre-processing estimate when a source's real frame rate
+#: can't be probed (e.g. some Instagram posts don't expose fps in metadata).
+_ASSUMED_FPS_WHEN_UNKNOWN = 30.0
 
 
 class ExtractionService:
     def __init__(self, db: Session):
         self.db = db
         self.repo = ExtractionRepository(db)
+
+    def estimate_frames(self, url: str, source: str, sampling_fps: float | None) -> dict:
+        """Frame-count estimate shown before processing: duration (probed, no
+        download) x effective sampling rate. Advisory only -- actual extraction
+        may keep fewer frames once the selected strategy and filters run."""
+        provider = get_provider(source)
+        meta = provider.probe(url)
+        duration = meta.get("duration") or 0.0
+        effective_fps = sampling_fps or meta.get("fps") or _ASSUMED_FPS_WHEN_UNKNOWN
+        return {
+            "duration": duration,
+            "fps": effective_fps,
+            "estimated_frames": max(0, round(duration * effective_fps)),
+        }
 
     def create_job(
         self,

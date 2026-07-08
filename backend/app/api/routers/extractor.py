@@ -7,6 +7,8 @@ from app.repositories.user_repository import UserRepository
 from app.shared.security import decode_access_token
 from app.api.schemas import (
     AnalyzeSummary,
+    EstimateRequest,
+    EstimateResponse,
     FrameOut,
     JobCreate,
     JobOut,

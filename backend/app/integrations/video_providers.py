@@ -39,6 +39,11 @@ class VideoProvider(Protocol):
         """
         ...
 
+    def probe(self, ref: str) -> dict:
+        """Metadata-only probe (no download): ``{"duration": float, "fps": float}``.
+        Used for the pre-processing frame-count estimate."""
+        ...
+
 
 class YtDlpProvider:
     """URL-based provider backed by yt-dlp.
@@ -54,6 +59,9 @@ class YtDlpProvider:
 
     def fetch(self, ref: str, output_dir: Path) -> dict:
         return YtDlp.download_video(ref, output_dir)
+
+    def probe(self, ref: str) -> dict:
+        return YtDlp.probe_metadata(ref)
 
 
 _PROVIDERS: dict[str, VideoProvider] = {}
