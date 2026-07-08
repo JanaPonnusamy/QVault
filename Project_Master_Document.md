@@ -15,11 +15,11 @@ later make them searchable/classified/answerable. Built new; NexusYTSync
 
 ## Current Version
 
-**v0.7.0** (Phase 3: Instagram Acquisition Module — reuses the video pipeline).
+**v0.8.0** (Frame Extraction Engine: Strategy Pattern + Frame Sampling Mode — reuses OCR/classification/question pipeline).
 
 ## Current Sprint
 
-Phase 3 — ✅ complete and verified (Instagram Acquisition: download → frame extraction → OCR → classification → review → export, reusing the existing YouTube video pipeline; no new tables).
+Maintenance — ✅ complete and verified (Frame Extraction Engine: configurable Frame Sampling → Strategy → shared quality filters, replacing the old fixed-interval-only extraction for both YouTube and Instagram; no changes downstream of extraction).
 
 > **Reference note (Nexora):** `E:\Nexora\backend` was analyzed as the platform
 > reference. Its platform layer is **raw pyodbc + hand-written T-SQL, has no JWT,
@@ -113,7 +113,7 @@ E:\QVault\
 | `roles` | Roles | RBAC |
 | `permissions` | `module:action` permissions | RBAC |
 | `role_permissions` | Role↔Permission M2M | RBAC |
-| `extraction_jobs` | Video acquisition jobs (status/stage/progress) + `source` discriminator + source metadata (caption/author/upload_date/thumbnail) | YouTube, **Instagram** |
+| `extraction_jobs` | Video acquisition jobs (status/stage/progress) + `source` discriminator + source metadata (caption/author/upload_date/thumbnail) + `extraction_strategy`/`extraction_options` (JSON) | YouTube, **Instagram** |
 | `frames` | Extracted frames + score/dedup/OCR + `classification` tags | YouTube, **Instagram** |
 | `questions` | Extracted/merged questions + confidences + status | YouTube, **Instagram** |
 | `acquisition_jobs` | **Generic** source jobs (scan/download/refresh) | Acquisition (NCERT, future) |
@@ -171,16 +171,56 @@ storage/
 
 ## Processing Pipeline
 
-**YouTube:** URL → yt-dlp download → FFmpeg frame extraction → frame question
-detection (image analysis) + dedup → auto-OCR of question frames → merge
-consecutive frames into questions with confidence → review queue → export.
+**YouTube:** URL → yt-dlp download → **Frame Extraction Engine** (Frame Sampling →
+selected Strategy, see below) → frame question detection (image analysis) + dedup →
+auto-OCR of question frames → merge consecutive frames into questions with
+confidence → review queue → export.
 
 **Instagram:** URL (Reel/Post) → yt-dlp download (video + caption/author/upload_date/
-thumbnail) → FFmpeg frame extraction → frame scoring + dedup → OCR of every unique
+thumbnail) → **Frame Extraction Engine** → frame scoring + dedup → OCR of every unique
 frame → deterministic content classification (heading/paragraph/question/options/
 answer/diagram/table) → auto-merged questions with confidence → review queue → export.
 Reuses the YouTube `extraction_jobs`/`frames`/`questions` tables, extraction worker,
 `ExtractionService`/`AnalysisService`, FFmpeg and RapidOCR; distinguished by `source`.
+
+**Frame Extraction Engine (Strategy Pattern).** Inserted between download and
+OCR/analysis for every source, unchanged downstream:
+```
+Video → Frame Sampling (fps mode) → Selected Strategy → shared quality filters → OCR → Classification → Question Extraction
+```
+`services/frame_extraction_service.py`: `FrameExtractionService.extract(video_path,
+frames_dir, options, duration)` is the single entry point `core/worker.py` calls
+(replacing the old direct `FFmpeg.extract_frames` call) — every strategy returns the
+same `list[(filename, timestamp)]` shape, so OCR/analysis/classification/question
+extraction are untouched.
+- **Frame Sampling** (`FFmpeg.extract_frames_sampled`, `sampling_fps`): every decoded
+  frame (`null`, catches sub-300ms flash content) or 30/15/10/5/2/1 FPS. Determines
+  how many candidate frames are *examined*; default **10 FPS**.
+- **Strategies** (which sampled frames are *kept*): `FixedIntervalStrategy` (0.25–5s,
+  user-selectable, keeps its own dedicated interval — ignores Frame Sampling by
+  design), `SceneDetectionStrategy` (ffmpeg `select='gt(scene,X)'`, opening frame
+  always prepended since scene-select never fires on frame 0), `OCRTextChangeStrategy`
+  (OCR every sampled frame, Save/Skip via `difflib` text-similarity against the last
+  *kept* frame), `HybridStrategy` (**default**: scene detection narrows candidates →
+  OCR text-diff, `collapse_empty_text=False` so textless scene changes like camera
+  cuts/diagram swaps are never discarded just because OCR found nothing).
+- **Shared quality filters** (apply after any strategy, `_apply_filters`):
+  `ignore_blank`/`ignore_blurred` (`FrameAnalyzer.is_blank` std-based,
+  `is_blurred`/`sharpness` Laplacian-variance), `remove_duplicates` +
+  `keep_best_quality` (MAD pixel-signature grouping, keeps sharpest of a group),
+  `max_frames` (`None`=auto cap at `frame_max_count`, `0`=unlimited, N=hard cap,
+  evenly subsampled). Dropped frames are deleted from disk.
+- **Pre-processing estimate:** `ExtractionService.estimate_frames` /
+  `POST /api/{extractor,sources/instagram}/estimate` — metadata-only probe (no
+  download, `YtDlp.probe_metadata`/`VideoProvider.probe`, duck-typed/optional) ×
+  effective sampling rate. Advisory only.
+- **Streaming, not batch-loaded:** ffmpeg decodes and writes one frame at a time to
+  disk (`-vsync 0`/`vfr`); OCR and quality checks read one image file at a time. The
+  video and its frame set are never held in memory all at once — true of the
+  pre-existing pipeline too, not new machinery.
+- Config persisted per job: `ExtractionJob.extraction_strategy` +
+  `extraction_options` (JSON: interval, scene_threshold, sampling_fps, max_frames,
+  remove_duplicates, keep_best_quality, ignore_blank, ignore_blurred).
 
 **Source-agnostic video ingestion.** Every acquisition source is a `VideoProvider`
 (`integrations/video_providers.py`): given a reference (URL now, local path later)
@@ -464,14 +504,29 @@ Knowledge Explorer.
 - **Backend Components:** `integrations/video_providers.py` (`VideoProvider` protocol + registry; `get_provider(source)`; per-provider `classify_frames` policy — the worker's single source-agnostic extension point), `integrations/ytdlp.py` (generic downloader now returns caption/author/upload_date/thumbnail/meta — yt-dlp supports Instagram natively), `services/classification_service.py` (deterministic `classify()` + `ClassificationService.process_job`: OCRs unique frames and tags heading/paragraph/question/options/answer/diagram/table — no AI), `core/worker.py` (persists source metadata; runs a `Classifying content` stage when `source == "instagram"`), `services/extraction_service.py` (source-aware `create_job`/`list_jobs`, export with source metadata + per-frame classification), `repositories/extraction_repository.py` (source filter), `routers/instagram.py` (`/api/sources/instagram/*`, thin adapter delegating to the shared services with source isolation).
 - **Frontend Components:** `pages/InstagramAcquisition.tsx` (stats cards, URL submit, per-stage `JobProgress`, source metadata header, frame + classification-badge gallery with OCR snippets, auto/manual OCR, inline question review with approve/reject/save/delete, JSON/CSV/SQLite export). Registered in `modules.ts` (Sources group) and `App.tsx` (`/instagram`).
 - **Database Tables:** reuses `extraction_jobs` (+`source`, `caption`, `author`, `upload_date`, `thumbnail_url`, `source_meta`), `frames` (+`classification`), `questions`. **No new tables.**
-- **Workers:** Extraction worker (`core/worker.py`), shared with YouTube; branches on `source` only for the classification stage.
+- **Workers:** Extraction worker (`core/worker.py`), shared with YouTube; classification runs based on the provider's `classify_frames` flag (no source-string branching — see `video_providers.py`).
 - **APIs:** `/api/sources/instagram/`: `POST jobs`, `GET jobs`, `GET stats`, `GET jobs/{id}`, `DELETE jobs/{id}`, `GET jobs/{id}/frames`, `POST jobs/{id}/analyze`, `GET frames/{id}/image` (token), `POST jobs/{id}/ocr`, `GET jobs/{id}/questions`, `PUT/DELETE questions/{id}`, `POST questions/{id}/approve|reject`, `GET jobs/{id}/export?format=json|csv|sqlite`.
 - **Storage:** reuses `storage/jobs/<id>/video.mp4` + `frames/`.
 - **Configuration:** none new (reuses `frame_max_count`/`frame_min_interval`, `question_threshold`/`dedup_mad`/`merge_threshold`). `instagram` RBAC module seeded (`view/create/update/delete/execute/export`).
 - **Dependencies:** yt-dlp (Instagram extractor), FFmpeg, RapidOCR — all already present.
 - **Reusable Components:** the `VideoProvider` registry makes the whole ingestion pipeline source-agnostic — future video sources (Facebook/TikTok/X/Vimeo/local MP4) are a provider registration only; `JobProgress`, `ConfidenceBadge`, `StatusBadge` reused on the UI.
-- **Verification Status:** ✅ Backend imports (77 routes); 21 unit tests pass (classifier, source isolation, classification service, routing/RBAC); frontend builds clean; API smoke test (login → stats/jobs/validation/404/401, 6 `instagram:*` permissions seeded); SQLite additive migration verified (new columns present). Live download requires network + a public Reel + FFmpeg (dev-sandbox network restricted).
+- **Verification Status:** ✅ Backend imports; unit tests pass (classifier, source isolation, classification service, routing/RBAC); frontend builds clean; API smoke test (login → stats/jobs/validation/404/401, 6 `instagram:*` permissions seeded); SQLite additive migration verified. ✅ Live-verified end-to-end: real Instagram Reel download (Chrome-exported cookies) → frames → OCR → classification → questions.
 - **Future Improvements:** carousel/multi-video posts; login-gated/private content; per-frame region classification; shared review page across sources.
+
+### 19. Frame Extraction Engine (Strategy Pattern + Frame Sampling)
+- **Purpose:** Replace the old fixed-~2s-interval frame extraction (which missed brief slides/questions/diagrams and flash content) with a configurable engine: a **Frame Sampling** stage controls how many candidate frames are examined, a **Strategy** decides which are kept, and shared quality filters clean up the result — reusing the existing video downloader, OCR engine, classification service and question-extraction pipeline unchanged.
+- **Status:** ✅ Complete · **Sprint:** Maintenance
+- **Backend Components:** `services/frame_extraction_service.py` (`FrameExtractionService` facade + `FrameExtractionStrategy` ABC: `FixedIntervalStrategy`, `SceneDetectionStrategy`, `OCRTextChangeStrategy`, `HybridStrategy` [default]; shared `_apply_filters` for `ignore_blank`/`ignore_blurred`/`remove_duplicates`+`keep_best_quality`/`max_frames`; `ExtractionOptions` dataclass with `from_job`/`from_payload`/`options_json`), `integrations/ffmpeg.py` (`extract_frames_scene` [scene-select filter, optional `sample_fps` pre-filter], `extract_frames_sampled` [Frame Sampling stage: fps-limited or every decoded frame], `extract_single_frame`, `probe_fps`; both scene/sampled methods treat ffmpeg's "received no packets" image2-muxer error as a valid empty result, not a crash), `integrations/frame_analysis.py` (`sharpness`/`is_blurred` [Laplacian variance], `is_blank` [pixel-stddev]), `integrations/ytdlp.py` (`YtDlp.probe_metadata`, metadata-only for the estimate), `integrations/video_providers.py` (optional duck-typed `VideoProvider.probe`), `services/extraction_service.py` (`estimate_frames`), `core/worker.py` (calls `FrameExtractionService` instead of `FFmpeg.extract_frames` directly — zero changes to the OCR/analysis/classification stages after it).
+- **Frontend Components:** `components/ExtractionStrategySelector.tsx` (strategy radios incl. Fixed Interval's own 0.25–5s dropdown; Advanced: Frame Sampling Mode dropdown + debounced live "~N frames will be examined" estimate + Maximum Frames + the 4 quality checkboxes). Wired into `pages/YouTubeExtractor.tsx` and `pages/InstagramAcquisition.tsx` submit forms.
+- **Database Tables:** `extraction_jobs` +`extraction_strategy` (default `hybrid`), +`extraction_options` (JSON). **No new tables.**
+- **Workers:** Extraction worker (`core/worker.py`), unchanged call sites downstream of extraction.
+- **APIs:** `JobCreate` extended (`strategy`, `interval`, `scene_threshold`, `sampling_fps`, `max_frames`, `remove_duplicates`, `keep_best_quality`, `ignore_blank`, `ignore_blurred`); `JobOut` +`extraction_strategy`. New: `POST /api/extractor/estimate`, `POST /api/sources/instagram/estimate` (`EstimateRequest`/`EstimateResponse`).
+- **Storage:** unchanged (`storage/jobs/<id>/frames/`); strategies use short-lived `_sample`/`_scene` scratch subdirectories, cleaned up after each job.
+- **Configuration:** none new at the settings level — strategy/sampling are per-job (`JobCreate` fields), not global config.
+- **Dependencies:** ffmpeg (`select`/`fps`/`showinfo` filters), OpenCV (Laplacian variance), RapidOCR, `difflib` (stdlib, OCR text-diff).
+- **Reusable Components:** `FrameExtractionService` is the single extension point for a 5th strategy; `ExtractionStrategySelector` is shared by both acquisition pages; the estimate endpoint pattern reuses `VideoProvider.probe`.
+- **Verification Status:** ✅ 66 new backend tests (103 total) using real synthetic ffmpeg-generated local MP4s (ground truth authored, not mocked): reproduces the original bug exactly (10s video → 5 frames at old 2s interval) and its fix (0.25s → ~40 frames); scene-boundary detection; OCR Save/Skip matches the spec's worked example exactly; Hybrid regression-guarded against collapsing textless scene changes (camera cuts) just because OCR found no text; a full worker end-to-end test drives a real local MP4 through the actual `core.worker._run_job` against the real DB for all 4 strategies (a throwaway test-only `VideoProvider`, not wired to any router/UI); flash-frame detection reproduces the exact scenario from the request (10 FPS misses a 33ms/1-frame flash, "every decoded frame" catches it, for both OCR Text Change and Hybrid). ✅ Live-verified: a real 213s YouTube video processed end-to-end (download → Hybrid @ 10 FPS → 33 frames → ready) through the actual running app and Vite proxy; estimate endpoint verified live against real YouTube metadata (both fixed-fps and every-frame/probed-fps modes) and rejects invalid `sampling_fps` (422). Frontend builds clean.
+- **Future Improvements:** persist/replay the last-used strategy per source as a smarter default; per-strategy scene-threshold auto-tuning; surface the Frame Sampling estimate before Instagram cookie-gated URLs (currently probes require a reachable source).
 
 ---
 
@@ -485,6 +540,7 @@ Knowledge Explorer.
 | GET | `/api/permissions` | `roles:view` |
 | GET/POST/PUT/DELETE | `/api/roles[/{id}]` | `roles:*` |
 | GET/POST | `/api/extractor/jobs` | `youtube_extractor:view/execute` |
+| POST | `/api/extractor/estimate` | `youtube_extractor:execute` |
 | GET/DELETE | `/api/extractor/jobs/{id}` | `youtube_extractor:view/delete` |
 | GET | `/api/extractor/jobs/{id}/frames` | `youtube_extractor:view` |
 | GET | `/api/extractor/frames/{id}/image` | token (query) |
@@ -495,6 +551,7 @@ Knowledge Explorer.
 | POST | `/api/extractor/questions/{id}/approve\|reject` | `youtube_extractor:update` |
 | GET | `/api/extractor/jobs/{id}/export?format=json\|csv\|sqlite` | `youtube_extractor:export` |
 | GET/POST | `/api/sources/instagram/jobs` | `instagram:view/execute` |
+| POST | `/api/sources/instagram/estimate` | `instagram:execute` |
 | GET | `/api/sources/instagram/stats` | `instagram:view` |
 | GET/DELETE | `/api/sources/instagram/jobs/{id}` | `instagram:view/delete` |
 | GET | `/api/sources/instagram/jobs/{id}/frames` | `instagram:view` |
@@ -550,10 +607,17 @@ New DB keys: `db_backend`, `mssql_*`, `database_url` override (see `config/.env.
 
 ## Current Status
 
+The **Frame Extraction Engine** (Strategy Pattern: Fixed Interval / Scene Detection /
+OCR Text Change / Hybrid-default, plus a Frame Sampling stage from every-decoded-frame
+down to 1 FPS) replaces the old fixed-interval-only extraction for both YouTube and
+Instagram, with zero changes downstream of extraction (OCR, analysis, classification,
+question extraction all reuse the same Frame rows unchanged). Backend imports cleanly
+(**79 routes**); **103 unit tests pass**; frontend builds clean; live-verified against
+a real 213s YouTube video end-to-end.
+
 Phase 3 complete and verified: the **Instagram Acquisition Module** reuses the entire
 YouTube video pipeline (download → frames → OCR → questions) via a `source` discriminator
 plus a deterministic content-classification stage — no new tables, no duplicated worker.
-Backend imports cleanly (**77 routes**); 21 unit tests pass; frontend builds clean.
 
 Platform Phase 1 complete and verified. Backend imports cleanly on
 **both SQLite (default) and SQL Server**. Frontend builds cleanly. The DB layer is
@@ -628,3 +692,5 @@ knowledge extraction/mapping) remain intact. Repo under Git
 | 2026-07-05 | v0.7.0 | Refactor — **source-agnostic video ingestion**: introduced `integrations/video_providers.py` (`VideoProvider` protocol + registry + per-provider `classify_frames` policy); the extraction worker now selects the downloader via `get_provider(job.source)` and gates classification off the provider flag, removing all source-string branching from the pipeline. Adding Facebook/TikTok/X/Vimeo/local-MP4 is now a provider registration only. 5 provider tests added (21 total). |
 | 2026-07-05 | v0.7.0 | Phase 3 — **Instagram Acquisition Module**: reused the YouTube video pipeline (extraction jobs/frames/questions, extraction worker, `ExtractionService`/`AnalysisService`, FFmpeg, RapidOCR) via a `source` discriminator + Instagram metadata columns (no new tables); generic yt-dlp downloader (Reels/Posts + caption/author/upload_date/thumbnail); deterministic content classifier (heading/paragraph/question/options/answer/diagram/table, no AI); `/api/sources/instagram/*` router + `instagram` RBAC; Instagram Acquisition UI (stats, progress stages, frame+classification gallery, review, export); 16 tests. |
 | 2026-06-29 | v0.6.0 | Platform Phase 1 — analyzed Nexora reference (no platform code copied; rationale recorded); dialect-aware **SQL Server** support (`db_backend`/`mssql_*`, `init_sqlserver.py`; live-verified) keeping existing SQLAlchemy auth/JWT/RBAC; **Content Assembly Engine** (`content_sections`/`content_blocks`, deterministic reconstruction, raw preserved); **Knowledge Reader** (Reader/Developer modes). |
+| 2026-07-08 | v0.8.0 | Maintenance — **Frame Extraction Engine (Strategy Pattern)**: `services/frame_extraction_service.py` replaces the old fixed-~2s-interval extraction with 4 selectable strategies (Fixed Interval 0.25–5s, Scene Detection, OCR Text Change, Hybrid default) + shared quality filters (dedup/best-quality/blank/blur/max-frames); `FrameExtractionService` is `core/worker.py`'s single call site, zero changes downstream (OCR/analysis/classification/questions untouched). Fixed a latent ffmpeg bug along the way: the image2 muxer errors on zero selected frames ("received no packets") for both `extract_frames_scene` and `extract_frames_sampled` — now treated as a valid empty result. `extraction_strategy`/`extraction_options` columns on `extraction_jobs`; `ExtractionStrategySelector` UI on both YouTube/Instagram pages. |
+| 2026-07-08 | v0.8.0 | Maintenance — **Frame Sampling Mode**: inserted ahead of strategy selection (`Video → Frame Sampling → Strategy → OCR → Classification → Questions`); `sampling_fps` (every decoded frame / 30-15-10-5-2-1 FPS, default 10) controls how many candidates are examined via `FFmpeg.extract_frames_sampled` and an optional pre-filter on `extract_frames_scene`; Hybrid's OCR text-diff was fixed to never collapse two textless frames as "duplicates" (`collapse_empty_text=False`) so scene-detected camera cuts/diagram swaps with no OCR text survive. New pre-processing frame-count estimate (`ExtractionService.estimate_frames`, `POST /api/{extractor,sources/instagram}/estimate`, `YtDlp.probe_metadata` + duck-typed optional `VideoProvider.probe`) shown live in the Advanced UI. 66 new tests (103 total) built on real synthetic ffmpeg-generated local MP4s, including an exact reproduction of a 33ms/1-frame flash that 10 FPS sampling misses and every-decoded-frame sampling catches; live-verified against a real 213s YouTube video end-to-end. |
