@@ -6,10 +6,9 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from app.config.settings import settings
 
 engine = create_engine(
-    settings.database_url,
-    connect_args={"check_same_thread": False}
-    if settings.database_url.startswith("sqlite")
-    else {},
+    settings.sqlalchemy_url,
+    connect_args={"check_same_thread": False} if settings.is_sqlite else {},
+    pool_pre_ping=not settings.is_sqlite,
     future=True,
 )
 
@@ -29,6 +28,16 @@ def get_db() -> Iterator[Session]:
 
 
 _NEW_COLUMNS: dict[str, dict[str, str]] = {
+    "extraction_jobs": {
+        "source": "VARCHAR(20) DEFAULT 'youtube'",
+        "caption": "TEXT DEFAULT ''",
+        "author": "VARCHAR(200) DEFAULT ''",
+        "upload_date": "VARCHAR(20) DEFAULT ''",
+        "thumbnail_url": "VARCHAR(1000) DEFAULT ''",
+        "source_meta": "TEXT DEFAULT ''",
+        "extraction_strategy": "VARCHAR(30) DEFAULT 'hybrid'",
+        "extraction_options": "TEXT DEFAULT ''",
+    },
     "frames": {
         "question_score": "FLOAT DEFAULT 0",
         "is_question": "BOOLEAN DEFAULT 0",
@@ -37,6 +46,7 @@ _NEW_COLUMNS: dict[str, dict[str, str]] = {
         "ocr_text": "TEXT DEFAULT ''",
         "ocr_confidence": "FLOAT DEFAULT 0",
         "ocr_done": "BOOLEAN DEFAULT 0",
+        "classification": "TEXT DEFAULT ''",
     },
     "questions": {
         "options": "TEXT DEFAULT ''",
@@ -56,6 +66,13 @@ def init_db() -> None:
     from app import models  # noqa: F401  (register mappers)
 
     Base.metadata.create_all(bind=engine)
+
+    # Legacy additive-column migration for pre-existing SQLite databases.
+    # On a fresh SQL Server target, create_all() already builds the full current
+    # schema, so this SQLite-only step is skipped (column evolution there is
+    # handled by create_all for new tables; structural changes use Alembic later).
+    if engine.dialect.name != "sqlite":
+        return
 
     with engine.begin() as conn:
         for table, columns in _NEW_COLUMNS.items():

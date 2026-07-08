@@ -24,8 +24,11 @@ class KnowledgeNode(Base):
     document_id: Mapped[int] = mapped_column(
         ForeignKey("documents.id", ondelete="CASCADE"), index=True
     )
+    # No ON DELETE CASCADE on this self-referential FK: SQL Server forbids the
+    # resulting multiple cascade paths (document_id already cascades). Nodes are
+    # always removed in bulk by document_id (KnowledgeRepository.clear_for_document).
     parent_id: Mapped[int | None] = mapped_column(
-        ForeignKey("knowledge_nodes.id", ondelete="CASCADE"), nullable=True, index=True
+        ForeignKey("knowledge_nodes.id"), nullable=True, index=True
     )
     node_type: Mapped[str] = mapped_column(String(20), index=True)  # root|section|paragraph|table|figure
     title: Mapped[str] = mapped_column(String(500), default="")

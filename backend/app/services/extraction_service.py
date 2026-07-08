@@ -12,6 +12,7 @@ from app.core import worker
 from app.integrations.ocr import OCR
 from app.models.extraction import ExtractionJob, Frame, Question
 from app.repositories.extraction_repository import ExtractionRepository
+from app.services.frame_extraction_service import ExtractionOptions
 
 
 class ExtractionService:
@@ -19,8 +20,23 @@ class ExtractionService:
         self.db = db
         self.repo = ExtractionRepository(db)
 
-    def create_job(self, url: str, user_id: int | None) -> ExtractionJob:
-        job = ExtractionJob(url=url.strip(), status="pending", stage="Queued", created_by=user_id)
+    def create_job(
+        self,
+        url: str,
+        user_id: int | None,
+        source: str = "youtube",
+        extraction_options: ExtractionOptions | None = None,
+    ) -> ExtractionJob:
+        options = extraction_options or ExtractionOptions()
+        job = ExtractionJob(
+            url=url.strip(),
+            source=source,
+            status="pending",
+            stage="Queued",
+            created_by=user_id,
+            extraction_strategy=options.strategy,
+            extraction_options=options.options_json(),
+        )
         self.repo.add_job(job)
         worker.submit_job(job.id)
         return job
@@ -28,8 +44,8 @@ class ExtractionService:
     def get_job(self, job_id: int) -> ExtractionJob | None:
         return self.repo.get_job(job_id)
 
-    def list_jobs(self) -> list[ExtractionJob]:
-        return self.repo.list_jobs()
+    def list_jobs(self, source: str | None = None) -> list[ExtractionJob]:
+        return self.repo.list_jobs(source)
 
     def delete_job(self, job: ExtractionJob) -> None:
         self.repo.delete_job(job)
@@ -98,18 +114,44 @@ class ExtractionService:
             )
         return rows
 
-    def export(self, job: ExtractionJob) -> dict:
+    def _frame_rows(self, job: ExtractionJob) -> list[dict]:
+        rows = []
+        for f in self.repo.list_frames(job.id):
+            try:
+                tags = json.loads(f.classification) if f.classification else []
+            except json.JSONDecodeError:
+                tags = []
+            rows.append(
+                {
+                    "index": f.index,
+                    "timestamp": f.timestamp,
+                    "ocr_text": f.ocr_text,
+                    "ocr_confidence": f.ocr_confidence,
+                    "classification": tags,
+                    "is_duplicate": f.is_duplicate,
+                }
+            )
+        return rows
+
+    def export(self, job: ExtractionJob, include_frames: bool = False) -> dict:
         rows = self._rows(job)
-        return {
+        payload = {
             "source": {
+                "type": job.source,
                 "url": job.url,
                 "title": job.title,
                 "video_id": job.video_id,
                 "duration": job.duration,
+                "caption": job.caption,
+                "author": job.author,
+                "upload_date": job.upload_date,
             },
             "question_count": len(rows),
             "questions": rows,
         }
+        if include_frames:
+            payload["frames"] = self._frame_rows(job)
+        return payload
 
     def export_csv(self, job: ExtractionJob) -> str:
         rows = self._rows(job)

@@ -9,9 +9,11 @@ logger = get_logger("seed")
 MODULE_ACTIONS: dict[str, list[str]] = {
     "dashboard": ["view"],
     "youtube_extractor": ["view", "create", "update", "delete", "execute", "export"],
+    "instagram": ["view", "create", "update", "delete", "execute", "export"],
     "ncert": ["view", "execute", "delete"],
     "documents": ["view", "execute", "delete"],
     "knowledge": ["view", "execute"],
+    "content": ["view", "execute"],
     "users": ["view", "create", "update", "delete"],
     "roles": ["view", "create", "update", "delete"],
     "settings": ["view", "update"],

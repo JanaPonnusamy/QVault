@@ -63,14 +63,14 @@ class NcertRepository:
     def all_missing(self) -> list[NcertBook]:
         return list(
             self.db.scalars(
-                select(NcertBook).where(NcertBook.downloaded.is_(False))
+                select(NcertBook).where(NcertBook.downloaded == False)  # noqa: E712
             )
         )
 
     def downloaded_books(self) -> list[NcertBook]:
         return list(
             self.db.scalars(
-                select(NcertBook).where(NcertBook.downloaded.is_(True))
+                select(NcertBook).where(NcertBook.downloaded == True)  # noqa: E712
             )
         )
 
@@ -81,7 +81,7 @@ class NcertRepository:
         by_status = {status: count for status, count in rows}
         total = sum(by_status.values())
         downloaded = self.db.scalar(
-            select(func.count()).select_from(NcertBook).where(NcertBook.downloaded.is_(True))
+            select(func.count()).select_from(NcertBook).where(NcertBook.downloaded == True)  # noqa: E712
         ) or 0
         return {
             "total": total,

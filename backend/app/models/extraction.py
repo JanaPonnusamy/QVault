@@ -15,9 +15,17 @@ class ExtractionJob(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     url: Mapped[str] = mapped_column(String(500))
+    source: Mapped[str] = mapped_column(String(20), default="youtube", index=True)
     title: Mapped[str] = mapped_column(String(300), default="")
     video_id: Mapped[str] = mapped_column(String(40), default="")
     duration: Mapped[int] = mapped_column(Integer, default=0)
+    caption: Mapped[str] = mapped_column(Text, default="")
+    author: Mapped[str] = mapped_column(String(200), default="")
+    upload_date: Mapped[str] = mapped_column(String(20), default="")
+    thumbnail_url: Mapped[str] = mapped_column(String(1000), default="")
+    source_meta: Mapped[str] = mapped_column(Text, default="")
+    extraction_strategy: Mapped[str] = mapped_column(String(30), default="hybrid")
+    extraction_options: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
     stage: Mapped[str] = mapped_column(String(60), default="")
     progress: Mapped[int] = mapped_column(Integer, default=0)
@@ -51,6 +59,7 @@ class Frame(Base):
     ocr_text: Mapped[str] = mapped_column(Text, default="")
     ocr_confidence: Mapped[float] = mapped_column(Float, default=0.0)
     ocr_done: Mapped[bool] = mapped_column(Boolean, default=False)
+    classification: Mapped[str] = mapped_column(Text, default="")
 
     job: Mapped[ExtractionJob] = relationship(back_populates="frames")
 

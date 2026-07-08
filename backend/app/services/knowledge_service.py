@@ -97,8 +97,10 @@ class KnowledgeService:
         return document
 
     def delete(self, document: Document) -> None:
+        from app.services.content_assembly_service import ContentAssemblyService
         from app.services.knowledge_map_service import KnowledgeMapService
 
+        ContentAssemblyService(self.db).clear(document.id)
         KnowledgeMapService(self.db).clear(document.id)
         if document.source == "upload" and document.file_path:
             path = Path(document.file_path)
@@ -218,3 +220,8 @@ class KnowledgeService:
         from app.services.knowledge_map_service import KnowledgeMapService
 
         KnowledgeMapService(self.db).map_document(document)
+
+        # Content Assembly Engine: reconstruct readable content (raw kept intact).
+        from app.services.content_assembly_service import ContentAssemblyService
+
+        ContentAssemblyService(self.db).assemble(document)

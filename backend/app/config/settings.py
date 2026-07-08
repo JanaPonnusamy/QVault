@@ -21,7 +21,19 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
-    database_url: str = f"sqlite:///{(ROOT / 'database' / 'qvault.db').as_posix()}"
+    # --- Database ---
+    # db_backend selects the target; an explicit database_url overrides everything.
+    db_backend: str = "sqlite"  # "sqlite" | "sqlserver"
+    database_url: str | None = None  # explicit SQLAlchemy URL override (QVAULT_DATABASE_URL)
+
+    mssql_server: str = "192.168.10.73"
+    mssql_port: int = 1433
+    mssql_database: str = "QVault"
+    mssql_user: str = "sa"
+    mssql_password: str = "Admin123"
+    mssql_driver: str = "ODBC Driver 17 for SQL Server"
+    mssql_trust_cert: bool = True
+
     storage_dir: Path = ROOT / "storage"
 
     jwt_secret: str = "change-me-in-production-qvault-secret-key"
@@ -37,6 +49,11 @@ class Settings(BaseSettings):
     question_threshold: float = 0.55
     dedup_mad: float = 0.012
     merge_threshold: float = 0.35
+
+    # yt-dlp cookie auth (Instagram/YouTube increasingly require a logged-in
+    # session for some content). Both optional; cookies_file takes precedence.
+    ytdlp_cookies_file: str | None = None  # path to a Netscape-format cookies.txt
+    ytdlp_cookies_from_browser: str | None = None  # e.g. "chrome", "firefox:Default"
 
     ncert_page_url: str = "https://ncert.nic.in/textbook.php"
     ncert_files_base: str = "https://ncert.nic.in/textbook/pdf"
@@ -63,6 +80,35 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def mssql_odbc_connect(self) -> str:
+        """Raw ODBC connection string for pyodbc / SQLAlchemy odbc_connect."""
+        parts = [
+            f"DRIVER={{{self.mssql_driver}}}",
+            f"SERVER={self.mssql_server},{self.mssql_port}",
+            f"DATABASE={self.mssql_database}",
+            f"UID={self.mssql_user}",
+            f"PWD={self.mssql_password}",
+        ]
+        if self.mssql_trust_cert:
+            parts.append("TrustServerCertificate=yes")
+        return ";".join(parts) + ";"
+
+    @property
+    def sqlalchemy_url(self) -> str:
+        """Resolved SQLAlchemy URL: explicit override > backend selection > sqlite default."""
+        if self.database_url:
+            return self.database_url
+        if self.db_backend.lower() in ("sqlserver", "mssql"):
+            from urllib.parse import quote_plus
+
+            return f"mssql+pyodbc:///?odbc_connect={quote_plus(self.mssql_odbc_connect)}"
+        return f"sqlite:///{(ROOT / 'database' / 'qvault.db').as_posix()}"
+
+    @property
+    def is_sqlite(self) -> bool:
+        return self.sqlalchemy_url.startswith("sqlite")
 
 
 settings = Settings()

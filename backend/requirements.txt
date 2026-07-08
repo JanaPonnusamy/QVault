@@ -3,10 +3,14 @@ uvicorn[standard]
 pydantic>=2
 pydantic-settings
 SQLAlchemy>=2
+pyodbc
 python-multipart
 PyJWT
 bcrypt
 yt-dlp
+pycryptodomex
 rapidocr-onnxruntime
 curl_cffi
 PyMuPDF
+pytest
+httpx

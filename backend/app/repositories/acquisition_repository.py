@@ -63,15 +63,14 @@ class NotificationRepository:
     def unread_count(self) -> int:
         from sqlalchemy import func
 
+        unread = Notification.is_read == False  # noqa: E712  (renders col = 0; portable to SQL Server)
         return int(
-            self.db.scalar(
-                select(func.count()).select_from(Notification).where(Notification.is_read.is_(False))
-            )
-            or 0
+            self.db.scalar(select(func.count()).select_from(Notification).where(unread)) or 0
         )
 
     def mark_all_read(self) -> None:
-        for n in self.db.scalars(select(Notification).where(Notification.is_read.is_(False))):
+        unread = Notification.is_read == False  # noqa: E712
+        for n in self.db.scalars(select(Notification).where(unread)):
             n.is_read = True
         self.db.commit()
 

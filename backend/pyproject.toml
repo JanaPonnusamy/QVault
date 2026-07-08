@@ -13,3 +13,4 @@ target-version = "py311"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["slow: ffmpeg-driven tests that encode/decode real synthetic video"]

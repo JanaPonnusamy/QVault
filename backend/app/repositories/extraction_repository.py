@@ -12,8 +12,11 @@ class ExtractionRepository:
     def get_job(self, job_id: int) -> ExtractionJob | None:
         return self.db.get(ExtractionJob, job_id)
 
-    def list_jobs(self) -> list[ExtractionJob]:
-        return list(self.db.scalars(select(ExtractionJob).order_by(ExtractionJob.id.desc())))
+    def list_jobs(self, source: str | None = None) -> list[ExtractionJob]:
+        stmt = select(ExtractionJob).order_by(ExtractionJob.id.desc())
+        if source is not None:
+            stmt = stmt.where(ExtractionJob.source == source)
+        return list(self.db.scalars(stmt))
 
     def add_job(self, job: ExtractionJob) -> ExtractionJob:
         self.db.add(job)

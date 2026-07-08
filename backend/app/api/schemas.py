@@ -4,11 +4,6 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, field_validator
 
 
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -78,15 +73,38 @@ class UserUpdate(BaseModel):
 
 class JobCreate(BaseModel):
     url: str
+    strategy: str = "hybrid"
+    interval: float | None = None
+    scene_threshold: float = 0.35
+    sample_interval: float = 0.5
+    max_frames: int | None = None
+    remove_duplicates: bool = True
+    keep_best_quality: bool = True
+    ignore_blank: bool = True
+    ignore_blurred: bool = True
+
+    @field_validator("strategy")
+    @classmethod
+    def _valid_strategy(cls, value: str) -> str:
+        allowed = {"fixed_interval", "scene_detection", "ocr_text_change", "hybrid"}
+        if value not in allowed:
+            raise ValueError(f"strategy must be one of {sorted(allowed)}")
+        return value
 
 
 class JobOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     url: str
+    source: str = "youtube"
     title: str
     video_id: str
     duration: int
+    caption: str = ""
+    author: str = ""
+    upload_date: str = ""
+    thumbnail_url: str = ""
+    extraction_strategy: str = "hybrid"
     status: str
     stage: str
     progress: int
@@ -105,6 +123,31 @@ class FrameOut(BaseModel):
     question_score: float = 0.0
     is_question: bool = False
     is_duplicate: bool = False
+    ocr_text: str = ""
+    ocr_confidence: float = 0.0
+    ocr_done: bool = False
+    classification: list[str] = []
+
+    @field_validator("classification", mode="before")
+    @classmethod
+    def _parse_classification(cls, value):
+        if isinstance(value, str):
+            if not value.strip():
+                return []
+            try:
+                parsed = json.loads(value)
+                return parsed if isinstance(parsed, list) else []
+            except json.JSONDecodeError:
+                return []
+        return value or []
+
+
+class InstagramStats(BaseModel):
+    total: int = 0
+    completed: int = 0
+    processing: int = 0
+    failed: int = 0
+    frames: int = 0
 
 
 class QuestionOut(BaseModel):
@@ -389,3 +432,79 @@ class KnowledgeStats(BaseModel):
 
 
 KnowledgeTreeNode.model_rebuild()
+
+
+# ---------- Content Assembly / Reader ----------
+
+class ContentBlockOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    section_id: int | None
+    block_type: str
+    order_index: int
+    text: str
+    caption: str
+    page: int
+    source_element_ids: list[int] = []
+    extra: dict | None = None
+
+    @field_validator("source_element_ids", mode="before")
+    @classmethod
+    def _ids(cls, value):
+        if isinstance(value, str):
+            if not value.strip():
+                return []
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                return []
+        return value or []
+
+    @field_validator("extra", mode="before")
+    @classmethod
+    def _extra(cls, value):
+        if isinstance(value, str):
+            if not value.strip():
+                return None
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                return None
+        return value
+
+
+class ContentSectionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    parent_id: int | None
+    title: str
+    level: int
+    order_index: int
+    page_start: int
+    page_end: int
+    blocks: list[ContentBlockOut] = []
+
+
+class AssembledDocumentOut(BaseModel):
+    document_id: int
+    title: str
+    section_count: int
+    block_count: int
+    sections: list[ContentSectionOut] = []
+
+
+class ContentStats(BaseModel):
+    assembled_documents: int = 0
+    sections: int = 0
+    blocks: int = 0
+    paragraphs: int = 0
+    figures: int = 0
+    tables: int = 0
+    examples: int = 0
+    exercises: int = 0
+
+
+class AssembleSummary(BaseModel):
+    sections: int = 0
+    blocks: int = 0
+    dropped_noise: int = 0

@@ -78,7 +78,7 @@ class DocumentRepository:
         by_status = {status: count for status, count in rows}
         total = sum(by_status.values())
         needs_ocr = self.db.scalar(
-            select(func.count()).select_from(Document).where(Document.needs_ocr.is_(True))
+            select(func.count()).select_from(Document).where(Document.needs_ocr == True)  # noqa: E712
         ) or 0
         elements = self.db.scalar(select(func.count()).select_from(DocumentElement)) or 0
         return {

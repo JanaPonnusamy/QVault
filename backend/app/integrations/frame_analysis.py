@@ -44,6 +44,28 @@ class FrameAnalyzer:
         return float(np.abs(sig_a - sig_b).mean())
 
     @staticmethod
+    def sharpness(image_path: str) -> float:
+        """Laplacian variance -- higher means crisper edges (less blur)."""
+        _, gray = _load_gray(image_path)
+        if gray is None:
+            return 0.0
+        return float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+    @staticmethod
+    def is_blurred(image_path: str, threshold: float = 60.0) -> bool:
+        """Standard Laplacian-variance blur test (lower variance = blurrier)."""
+        return FrameAnalyzer.sharpness(image_path) < threshold
+
+    @staticmethod
+    def is_blank(image_path: str, std_threshold: float = 4.0) -> bool:
+        """A near-solid-color frame (blank slide transition, black/white flash)
+        has almost no pixel-intensity variation."""
+        _, gray = _load_gray(image_path)
+        if gray is None:
+            return True
+        return float(gray.std()) < std_threshold
+
+    @staticmethod
     def question_probability(image_path: str) -> float:
         """Estimate the probability a frame contains a question/text slide.
 
