@@ -1,12 +1,14 @@
 # QVault — Release Notes
 
-## 0.5.0 — QVault (2026-06-29)
+## 0.5.0 — QVault (2026-07-08)
 
 _This release contains maintenance and internal changes._
 
 ### Changes
 
 **Changed**
+- sync 6 file(s) in root
+- sync 1 file(s) in automation
 - sync 4 file(s) in root
 - Merge remote-tracking branch 'origin/main'
 - sync 4 file(s) in root

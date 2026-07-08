@@ -27,6 +27,25 @@ sprint finishes. Keep this file accurate after every sprint (see CLAUDE.md rule 
 
 ## COMPLETED
 
+### Phase 3 — Instagram Acquisition Module (v0.7.0)
+- Reused the existing video pipeline (`extraction_jobs`/`frames`/`questions`, extraction worker, `ExtractionService`/`AnalysisService`, FFmpeg frame extraction, RapidOCR) — **no new tables, no duplicated pipeline**
+- Added a `source` discriminator + Instagram metadata columns (`caption`, `author`, `upload_date`, `thumbnail_url`, `source_meta`) to `extraction_jobs`; `classification` to `frames` (additive SQLite migration; `create_all` on SQL Server)
+- Generic `yt-dlp` downloader now returns caption/author/upload_date/thumbnail/meta (Instagram Reels & Posts supported natively); worker persists them and runs a classification stage for Instagram jobs
+- Deterministic content classifier (`ClassificationService`, no AI): OCRs every unique frame and tags Heading/Paragraph/Question/Options/Answer/Diagram/Table
+- Thin `instagram` router (`/api/sources/instagram/*`) delegating to shared services + source isolation; `instagram` RBAC module seeded
+- Instagram Acquisition page (stats, URL submit, progress stages, frame+classification gallery, auto/manual OCR, inline question review, JSON/CSV/SQLite export) reusing `JobProgress`/`ConfidenceBadge`/`StatusBadge`
+- YouTube job list filtered to its own source (no cross-leak); existing YouTube module behaviour unchanged
+- Tests: classifier + source-isolation + classification-service + routing/RBAC wiring (16 passing)
+
+### Platform Phase 1 — SQL Server + Content Assembly + Knowledge Reader (v0.6.0)
+- Analyzed Nexora reference backend; **no platform code copied** (raw pyodbc/no-JWT/tenant-coupled — below QVault's stack); reused only SQL Server connection + schema conventions
+- SQL Server migration: dialect-aware settings/engine/init_db, `db_backend`/`mssql_*` config, `scripts/init_sqlserver.py`; **live-verified** on SQL Server 2014 (DB created, 16 tables, auth/RBAC + stats working); SQLite default kept (non-breaking)
+- Dialect fixes: knowledge_nodes self-FK no-cascade; boolean filters `== True/False`
+- Existing Auth/Users/Roles/Permissions reused unchanged on SQL Server (no downgrade)
+- Content Assembly Engine: `content_sections`/`content_blocks`, deterministic reconstruction (merge paragraphs, drop headers/footers/page numbers, captions↔figures, examples/exercises, reading order, sections); **raw extraction preserved**; auto-runs after extraction; `/api/content/*`
+- Knowledge Reader: DocumentViewer Reader (assembled, default) vs Developer (raw nodes) toggle; `content` RBAC module
+- Docs/config updated (`config/.env.example` SQL Server keys)
+
 ### Maintenance — Release Automation adapted for QVault (v0.5.0)
 - Reused the bundled `automation/` (NDF) framework — not recreated
 - Root `ndf.config.toml` override: name=QVault, URL=github.com/JanaPonnusamy/QVault, version 0.5.0, commit groups, module registry

@@ -15,11 +15,20 @@ later make them searchable/classified/answerable. Built new; NexusYTSync
 
 ## Current Version
 
-**v0.5.0** (Knowledge Mapping Engine complete).
+**v0.7.0** (Phase 3: Instagram Acquisition Module — reuses the video pipeline).
 
 ## Current Sprint
 
-Knowledge Mapping Engine — ✅ complete and verified.
+Phase 3 — ✅ complete and verified (Instagram Acquisition: download → frame extraction → OCR → classification → review → export, reusing the existing YouTube video pipeline; no new tables).
+
+> **Reference note (Nexora):** `E:\Nexora\backend` was analyzed as the platform
+> reference. Its platform layer is **raw pyodbc + hand-written T-SQL, has no JWT,
+> no enforcement middleware, empty logging/audit, and tenant/store-coupled RBAC** —
+> i.e., below QVault's existing SQLAlchemy + JWT + granular RBAC. Per the
+> "never break existing functionality / don't redesign unnecessarily" rules, **no
+> Nexora platform code was copied**; only its SQL Server **connection conventions**
+> (ODBC Driver 17, TrustServerCertificate) and **schema conventions** were reused.
+> QVault keeps its superior platform layer, retargeted to SQL Server.
 
 ## Overall Progress
 
@@ -30,6 +39,8 @@ Knowledge Mapping Engine — ✅ complete and verified.
 | 3 | NCERT Acquisition Agent + Notification System + generic Acquisition Jobs | ✅ Complete |
 | 4 | Knowledge Extraction Engine (deterministic PDF structure extraction) | ✅ Complete |
 | 6 | Knowledge Mapping Engine (hierarchical knowledge tree + Explorer) | ✅ Complete |
+| Platform P1 | SQL Server migration + Content Assembly Engine + Knowledge Reader | ✅ Complete |
+| 3 (Phase 3) | Instagram Acquisition Module (reuses video pipeline: download → frames → OCR → classification) | ✅ Complete |
 
 ---
 
@@ -52,11 +63,12 @@ E:\QVault\
 │       ├── api/
 │       │   ├── deps.py           Auth deps, require_permission()
 │       │   ├── schemas.py        All Pydantic DTOs
-│       │   └── routers/          auth, users, roles, extractor, ncert, notifications, documents, knowledge
-│       ├── services/             auth, extraction, analysis, ncert, notification, knowledge, knowledge_map
-│       ├── repositories/         user, rbac, extraction, ncert, acquisition, document, knowledge
-│       ├── models/               rbac, extraction, acquisition, document, knowledge
-│       ├── integrations/         ytdlp, ffmpeg, ocr, frame_analysis, ncert_scraper, ncert_downloader, pdf_extractor
+│       │   └── routers/          auth, users, roles, extractor, instagram, ncert, notifications, documents, knowledge, content
+│       ├── services/             auth, extraction, analysis, classification, ncert, notification, knowledge, knowledge_map, content_assembly
+│       ├── repositories/         user, rbac, extraction, ncert, acquisition, document, knowledge, content
+│       ├── models/               rbac, extraction, acquisition, document, knowledge, content
+│       ├── scripts/              init_sqlserver.py (create DB + schema + seed)
+│       ├── integrations/         video_providers, ytdlp, ffmpeg, ocr, frame_analysis, ncert_scraper, ncert_downloader, pdf_extractor
 │       ├── core/                 app (factory), seed, worker, acquisition_worker
 │       ├── config/               settings
 │       ├── database/             session (engine, init_db, migrations)
@@ -80,6 +92,10 @@ E:\QVault\
 
 - **Backend:** Python 3.12, FastAPI, Uvicorn, SQLAlchemy 2.0, Pydantic v2 +
   pydantic-settings, PyJWT, bcrypt.
+- **Database backends (dialect-aware):** SQLite (default/dev) **and SQL Server**
+  (`mssql+pyodbc`, `pyodbc` + ODBC Driver 17). Selected via `QVAULT_DB_BACKEND`;
+  `scripts/init_sqlserver.py` creates the DB + schema. Verified live on SQL Server
+  2014 @ 192.168.10.73 / `QVault`.
 - **Media/Processing:** yt-dlp, FFmpeg (system binary), RapidOCR
   (`rapidocr-onnxruntime`, ONNX — no Tesseract), OpenCV + NumPy (frame analysis),
   **PyMuPDF** (deterministic PDF structure extraction).
@@ -97,9 +113,9 @@ E:\QVault\
 | `roles` | Roles | RBAC |
 | `permissions` | `module:action` permissions | RBAC |
 | `role_permissions` | Role↔Permission M2M | RBAC |
-| `extraction_jobs` | YouTube extraction jobs (status/stage/progress) | YouTube |
-| `frames` | Extracted frames + score/dedup/OCR fields | YouTube |
-| `questions` | Extracted/merged questions + confidences + status | YouTube |
+| `extraction_jobs` | Video acquisition jobs (status/stage/progress) + `source` discriminator + source metadata (caption/author/upload_date/thumbnail) | YouTube, **Instagram** |
+| `frames` | Extracted frames + score/dedup/OCR + `classification` tags | YouTube, **Instagram** |
+| `questions` | Extracted/merged questions + confidences + status | YouTube, **Instagram** |
 | `acquisition_jobs` | **Generic** source jobs (scan/download/refresh) | Acquisition (NCERT, future) |
 | `ncert_books` | NCERT book registry/catalog | NCERT |
 | `notifications` | App notifications | Notifications (shared) |
@@ -107,9 +123,15 @@ E:\QVault\
 | `document_elements` | **Generic** structural elements (heading/paragraph/table/figure) | Knowledge Extraction |
 | `document_bookmarks` | Document outline / TOC | Knowledge Extraction |
 | `knowledge_nodes` | **Generic** hierarchical knowledge tree (parent_id self-FK, materialized path) | Knowledge Mapping |
+| `content_sections` | Assembled reader sections (cleaned heading hierarchy) | Content Assembly |
+| `content_blocks` | Assembled readable blocks (paragraph/figure/table/example/exercise) + provenance | Content Assembly |
 
-Schema is created via `Base.metadata.create_all`; additive column changes are
-applied by a lightweight `ALTER TABLE` migration in `database/session.init_db`.
+Schema is created via `Base.metadata.create_all` (works on SQLite **and** SQL
+Server). On SQLite, a lightweight `ALTER TABLE` column migration runs in
+`database/session.init_db`; on SQL Server, `create_all` builds the full current
+schema (structural evolution → Alembic later). Two SQL Server dialect fixes were
+applied: `knowledge_nodes` self-FK has no cascade (multiple-cascade-path rule),
+and boolean filters use `== True/False` (not `.is_()`, which renders invalid `IS 1`).
 
 ## Worker Architecture
 
@@ -142,6 +164,7 @@ storage/
 | Source | Status | Notes |
 |--------|--------|-------|
 | YouTube | ✅ Live | Video → frames → questions |
+| Instagram | ✅ Live | Reels/Posts → frames → OCR → classification → questions (reuses the video pipeline) |
 | NCERT | ✅ Live | textbook.php scan → complete-book zip download |
 | PDF | ⏳ Coming soon | Sidebar placeholder |
 | Images | ⏳ Coming soon | Sidebar placeholder |
@@ -151,6 +174,24 @@ storage/
 **YouTube:** URL → yt-dlp download → FFmpeg frame extraction → frame question
 detection (image analysis) + dedup → auto-OCR of question frames → merge
 consecutive frames into questions with confidence → review queue → export.
+
+**Instagram:** URL (Reel/Post) → yt-dlp download (video + caption/author/upload_date/
+thumbnail) → FFmpeg frame extraction → frame scoring + dedup → OCR of every unique
+frame → deterministic content classification (heading/paragraph/question/options/
+answer/diagram/table) → auto-merged questions with confidence → review queue → export.
+Reuses the YouTube `extraction_jobs`/`frames`/`questions` tables, extraction worker,
+`ExtractionService`/`AnalysisService`, FFmpeg and RapidOCR; distinguished by `source`.
+
+**Source-agnostic video ingestion.** Every acquisition source is a `VideoProvider`
+(`integrations/video_providers.py`): given a reference (URL now, local path later)
+and an output dir it produces `video.mp4` + a shared metadata dict. The extraction
+worker selects the provider via `get_provider(job.source)` and gates the optional
+content-classification stage off the provider's `classify_frames` flag — it contains
+**no source-string branching**. Frame extraction, OCR, analysis/merge and question
+extraction operate only on `video.mp4` + metadata. Adding Facebook/TikTok/X/Vimeo
+(yt-dlp-native → one `register(...)` line) or a local MP4 (a small provider whose
+`fetch` copies the file) requires **only a new provider registration** — no worker,
+frame, OCR, classification or question-extraction change.
 
 **NCERT:** scan textbook.php (parse embedded JS) → book registry → select/all →
 download complete-book zip (checksum + version signature) → update detection.
@@ -381,6 +422,57 @@ Knowledge Explorer.
 - **Verification Status:** ✅ Live: `ship` bumped 0.5.0 build, generated docs, grouped commits, pushed `main` (verified local HEAD == origin/main), created/pushed tag `v0.5.0`; remote reconciled via unrelated-history merge. git status/add/commit/tag/push all verified.
 - **Future Improvements:** Sprint field in VERSION.md; auto-commit Co-Authored-By trailer; CI trigger.
 
+### 15. SQL Server Platform Migration
+- **Purpose:** Run QVault's existing SQLAlchemy platform (Auth/JWT/RBAC/repositories) on SQL Server, without redesigning or downgrading to Nexora's raw-pyodbc approach.
+- **Status:** ✅ Complete · **Sprint:** Platform P1
+- **Backend Components:** `config/settings.py` (dialect-aware `sqlalchemy_url`, `db_backend`, `mssql_*`), `database/session.py` (engine + dialect-aware `init_db`), `scripts/init_sqlserver.py` (create DB + schema + seed). Boolean-filter + cascade dialect fixes in repositories/models.
+- **Frontend Components:** — (transparent to UI).
+- **Database Tables:** all existing tables, now created on SQL Server (14 + 2 content = 16).
+- **APIs:** unchanged — Auth/Users/Roles/Permissions verified working on SQL Server.
+- **Configuration:** `QVAULT_DB_BACKEND` (`sqlite`|`sqlserver`), `QVAULT_MSSQL_*`, `QVAULT_DATABASE_URL` override. See `config/.env.example`.
+- **Dependencies:** `pyodbc` + ODBC Driver 17 for SQL Server.
+- **Reusable Components:** dialect-aware settings/engine; `init_sqlserver.py` installer.
+- **Verification Status:** ✅ Live: created `QVault` DB on SQL Server 2014, built 16 tables, seeded admin, login + RBAC CRUD + all module stats endpoints verified over `mssql`. SQLite default remains intact (non-breaking).
+- **Future Improvements:** Alembic for SQL Server structural migrations; connection pooling tuning; secrets via vault.
+
+### 16. Content Assembly Engine
+- **Purpose:** Reconstruct readable content from raw `document_elements` (replaces the raw node dump). Deterministic, no AI/OCR. **Raw extraction is never modified.**
+- **Status:** ✅ Complete · **Sprint:** Platform P1
+- **Backend Components:** `models/content.py` (`content_sections`, `content_blocks` with `source_element_ids` provenance), `services/content_assembly_service.py` (merge adjacent paragraphs + de-hyphenate, drop page numbers + repeated headers/footers, associate figure/table captions, recognise headings/examples/exercises, preserve reading order, group into sections), `repositories/content_repository.py`, `routers/content.py`. Auto-runs after extraction+mapping in `knowledge_service._extract_one`; cleared on document delete/reassemble.
+- **Frontend Components:** Reader rendering in `pages/DocumentViewer.tsx` (see #17).
+- **Database Tables:** `content_sections`, `content_blocks` (regenerable; raw kept intact).
+- **APIs:** `/api/content/`: `GET stats`, `GET documents/{id}` (assembled), `POST documents/{id}/assemble`.
+- **Configuration:** none. **Dependencies:** pure Python over existing tables.
+- **Reusable Components:** `ContentAssemblyService` (any document source feeds it).
+- **Verification Status:** ✅ Live on SQL Server: 19 raw elements → 6 clean blocks; running header + page numbers dropped, split paragraph merged, figure↔caption associated, Example + EXERCISE recognised, reading order + sections preserved; raw 19 elements untouched; provenance ids retained.
+- **Future Improvements:** multi-column reading order; nested list/MCQ option parsing; cross-page table stitching.
+
+### 17. Knowledge Reader (Reader vs Developer)
+- **Purpose:** Show reconstructed content by default; keep the raw node dump behind a Developer toggle.
+- **Status:** ✅ Complete · **Sprint:** Platform P1
+- **Backend Components:** reuses `/api/content/*` (reader) and `/api/documents/{id}/elements` (developer).
+- **Frontend Components:** `pages/DocumentViewer.tsx` — **Reader Mode** (default): assembled sections + readable blocks (paragraphs, figures w/ captions, tables, styled Example/Exercise boxes); **Developer Mode**: existing raw element-by-element view. Toggle in the header; bookmarks sidebar retained.
+- **Database Tables:** —. **APIs:** —.
+- **Configuration:** none. **Dependencies:** —.
+- **Reusable Components:** `ReaderView`/`BlockView` components.
+- **Verification Status:** ✅ Reader API returns clean nested sections/blocks over HTTP on SQL Server; frontend builds clean; raw extraction still viewable in Developer mode.
+- **Future Improvements:** print/export reader view; deep-link a section; side-by-side raw↔assembled diff.
+
+### 18. Instagram Acquisition
+- **Purpose:** Acquire public Instagram Reels/Posts, extract frames, OCR every unique frame, classify content, and surface auto-merged questions — reusing the existing video pipeline rather than building a parallel one.
+- **Status:** ✅ Complete · **Sprint:** 3 (Phase 3)
+- **Backend Components:** `integrations/video_providers.py` (`VideoProvider` protocol + registry; `get_provider(source)`; per-provider `classify_frames` policy — the worker's single source-agnostic extension point), `integrations/ytdlp.py` (generic downloader now returns caption/author/upload_date/thumbnail/meta — yt-dlp supports Instagram natively), `services/classification_service.py` (deterministic `classify()` + `ClassificationService.process_job`: OCRs unique frames and tags heading/paragraph/question/options/answer/diagram/table — no AI), `core/worker.py` (persists source metadata; runs a `Classifying content` stage when `source == "instagram"`), `services/extraction_service.py` (source-aware `create_job`/`list_jobs`, export with source metadata + per-frame classification), `repositories/extraction_repository.py` (source filter), `routers/instagram.py` (`/api/sources/instagram/*`, thin adapter delegating to the shared services with source isolation).
+- **Frontend Components:** `pages/InstagramAcquisition.tsx` (stats cards, URL submit, per-stage `JobProgress`, source metadata header, frame + classification-badge gallery with OCR snippets, auto/manual OCR, inline question review with approve/reject/save/delete, JSON/CSV/SQLite export). Registered in `modules.ts` (Sources group) and `App.tsx` (`/instagram`).
+- **Database Tables:** reuses `extraction_jobs` (+`source`, `caption`, `author`, `upload_date`, `thumbnail_url`, `source_meta`), `frames` (+`classification`), `questions`. **No new tables.**
+- **Workers:** Extraction worker (`core/worker.py`), shared with YouTube; branches on `source` only for the classification stage.
+- **APIs:** `/api/sources/instagram/`: `POST jobs`, `GET jobs`, `GET stats`, `GET jobs/{id}`, `DELETE jobs/{id}`, `GET jobs/{id}/frames`, `POST jobs/{id}/analyze`, `GET frames/{id}/image` (token), `POST jobs/{id}/ocr`, `GET jobs/{id}/questions`, `PUT/DELETE questions/{id}`, `POST questions/{id}/approve|reject`, `GET jobs/{id}/export?format=json|csv|sqlite`.
+- **Storage:** reuses `storage/jobs/<id>/video.mp4` + `frames/`.
+- **Configuration:** none new (reuses `frame_max_count`/`frame_min_interval`, `question_threshold`/`dedup_mad`/`merge_threshold`). `instagram` RBAC module seeded (`view/create/update/delete/execute/export`).
+- **Dependencies:** yt-dlp (Instagram extractor), FFmpeg, RapidOCR — all already present.
+- **Reusable Components:** the `VideoProvider` registry makes the whole ingestion pipeline source-agnostic — future video sources (Facebook/TikTok/X/Vimeo/local MP4) are a provider registration only; `JobProgress`, `ConfidenceBadge`, `StatusBadge` reused on the UI.
+- **Verification Status:** ✅ Backend imports (77 routes); 21 unit tests pass (classifier, source isolation, classification service, routing/RBAC); frontend builds clean; API smoke test (login → stats/jobs/validation/404/401, 6 `instagram:*` permissions seeded); SQLite additive migration verified (new columns present). Live download requires network + a public Reel + FFmpeg (dev-sandbox network restricted).
+- **Future Improvements:** carousel/multi-video posts; login-gated/private content; per-frame region classification; shared review page across sources.
+
 ---
 
 ## APIs (current)
@@ -402,6 +494,16 @@ Knowledge Explorer.
 | PUT/DELETE | `/api/extractor/questions/{id}` | `youtube_extractor:update` |
 | POST | `/api/extractor/questions/{id}/approve\|reject` | `youtube_extractor:update` |
 | GET | `/api/extractor/jobs/{id}/export?format=json\|csv\|sqlite` | `youtube_extractor:export` |
+| GET/POST | `/api/sources/instagram/jobs` | `instagram:view/execute` |
+| GET | `/api/sources/instagram/stats` | `instagram:view` |
+| GET/DELETE | `/api/sources/instagram/jobs/{id}` | `instagram:view/delete` |
+| GET | `/api/sources/instagram/jobs/{id}/frames` | `instagram:view` |
+| POST | `/api/sources/instagram/jobs/{id}/analyze\|ocr` | `instagram:execute` |
+| GET | `/api/sources/instagram/frames/{id}/image` | token (query) |
+| GET | `/api/sources/instagram/jobs/{id}/questions` | `instagram:view` |
+| PUT/DELETE | `/api/sources/instagram/questions/{id}` | `instagram:update` |
+| POST | `/api/sources/instagram/questions/{id}/approve\|reject` | `instagram:update` |
+| GET | `/api/sources/instagram/jobs/{id}/export?format=json\|csv\|sqlite` | `instagram:export` |
 | POST | `/api/sources/ncert/scan\|refresh\|download\|download-all` | `ncert:execute` |
 | GET | `/api/sources/ncert/books\|stats\|facets\|jobs` | `ncert:view` |
 | POST | `/api/sources/ncert/books/{id}/retry` | `ncert:execute` |
@@ -416,6 +518,8 @@ Knowledge Explorer.
 | GET | `/api/knowledge/documents/{id}/tree`, `/api/knowledge/nodes/{id}` | `knowledge:view` |
 | GET | `/api/knowledge/search?q=&document_id=` | `knowledge:view` |
 | POST | `/api/knowledge/documents/{id}/remap` | `knowledge:execute` |
+| GET | `/api/content/stats`, `/api/content/documents/{id}` | `content:view` |
+| POST | `/api/content/documents/{id}/assemble` | `content:execute` |
 | GET | `/api/notifications` | authenticated |
 | POST | `/api/notifications/read-all`, `/api/notifications/{id}/read` | authenticated |
 | GET | `/api/health` | public |
@@ -425,6 +529,7 @@ Knowledge Explorer.
 | Job | Worker | Stages |
 |-----|--------|--------|
 | YouTube extraction | `core/worker.py` | downloading → extracting → analyzing → ready / failed |
+| Instagram acquisition | `core/worker.py` | downloading → extracting → analyzing (OCR) → classifying → ready / failed |
 | NCERT scan | `core/acquisition_worker.py` | queued → scanning → completed / failed |
 | NCERT download | `core/acquisition_worker.py` | queued → downloading → completed / failed |
 | NCERT refresh (version check) | `core/acquisition_worker.py` | queued → scanning → completed / failed |
@@ -435,23 +540,59 @@ Knowledge Explorer.
 All settings via env (prefix `QVAULT_`), see `config/.env.example`. Keys:
 app/env/log; api host/port; cors; `database_url`; `storage_dir`; jwt secret/algo/expiry;
 seed admin; `ffmpeg_path`/`ffprobe_path`; `frame_max_count`/`frame_min_interval`;
-`question_threshold`/`dedup_mad`/`merge_threshold`; `ncert_page_url`/`ncert_files_base`/
+`question_threshold`/`dedup_mad`/`merge_threshold`;
+`ytdlp_cookies_file`/`ytdlp_cookies_from_browser` (yt-dlp cookie auth — Instagram/YouTube
+"empty media response"/login-wall workaround; `integrations/ytdlp.py`, optional, unset by
+default); `ncert_page_url`/`ncert_files_base`/
 `ncert_retry_count`/`ncert_concurrent_downloads`/`ncert_timeout`. Permission modules are
-seeded in `core/seed.py`: `dashboard`, `youtube_extractor`, `ncert`, `documents`, `knowledge`, `users`, `roles`, `settings`.
-The Knowledge Extraction & Mapping Engines add no new env keys (use `storage_dir`/existing tables).
+seeded in `core/seed.py`: `dashboard`, `youtube_extractor`, `instagram`, `ncert`, `documents`, `knowledge`, `content`, `users`, `roles`, `settings`.
+New DB keys: `db_backend`, `mssql_*`, `database_url` override (see `config/.env.example`).
 
 ## Current Status
 
-Sprints 1–6 complete and verified. Backend imports cleanly (59 routes). Frontend
-builds cleanly. Two live acquisition sources (YouTube, NCERT); a deterministic
-Knowledge Extraction Engine (PDF → structure) feeding a Knowledge Mapping Engine
-(structure → hierarchical knowledge tree + Explorer); plus automatic question
-extraction, review, multi-format export, and notifications. The repository is now
-under Git (`origin` → github.com/JanaPonnusamy/QVault, branch `main`) with
-one-command release automation (`python -m automation ship`).
+Phase 3 complete and verified: the **Instagram Acquisition Module** reuses the entire
+YouTube video pipeline (download → frames → OCR → questions) via a `source` discriminator
+plus a deterministic content-classification stage — no new tables, no duplicated worker.
+Backend imports cleanly (**77 routes**); 21 unit tests pass; frontend builds clean.
+
+Platform Phase 1 complete and verified. Backend imports cleanly on
+**both SQLite (default) and SQL Server**. Frontend builds cleanly. The DB layer is
+dialect-aware (SQL Server 2014 verified live: DB created, 16 tables, auth/RBAC + all
+module stats working). The raw-extraction node dump is replaced by a deterministic
+**Content Assembly Engine** surfaced through a **Knowledge Reader** (Reader default,
+Developer toggle), with raw extraction always preserved. Prior sprints' features
+(YouTube/NCERT acquisition, question extraction, review, export, notifications,
+knowledge extraction/mapping) remain intact. Repo under Git
+(`origin` → github.com/JanaPonnusamy/QVault) with `python -m automation ship`.
 
 ## Known Issues
 
+- **Instagram auth wall:** Instagram increasingly requires a logged-in session
+  for some posts/reels; yt-dlp then fails with "Instagram sent an empty media
+  response". Workaround: set `QVAULT_YTDLP_COOKIES_FILE` (Netscape cookies.txt)
+  or `QVAULT_YTDLP_COOKIES_FROM_BROWSER` (e.g. `chrome`) in `config/.env` — the
+  downloader surfaces this hint in the job's error message when neither is set.
+  **`COOKIES_FROM_BROWSER` is unreliable on Windows** — Chrome locks its cookie
+  database while running (even with all windows closed, via background apps),
+  failing with "Could not copy Chrome cookie database" (yt-dlp/yt-dlp#7271);
+  decrypting Windows Chrome cookies also needs `pycryptodomex` (added to
+  `requirements.txt`). **`COOKIES_FILE` (a one-time cookies.txt export via a
+  browser extension) is the reliable path** — it doesn't depend on the browser's
+  lock state at all. `integrations/ytdlp.py`'s `CookieSource` resolves the
+  active source once (file > browser > none), fails fast with a clear error if
+  a configured file doesn't exist on disk (instead of silently downloading with
+  zero cookies), and `core/app.py` logs the active source on every startup
+  (`Cookies Source: ✓ Cookies File` / `✓ Browser: X` / `✗ Misconfigured: ...`)
+  so a stale/misconfigured setting is never silently invisible again.
+- **`uvicorn --reload` does not watch `config/.env`** — only `.py` file changes
+  trigger a reload. Editing `.env` requires a manual backend restart (kill +
+  relaunch) to take effect; this has caused confusing "it's still using the old
+  setting" symptoms twice (login contract, Instagram cookies). If a Windows
+  `Stop-Process` on a `--reload` parent leaves its spawned child bound to the
+  port (orphaned listener), the port can end up serving stale code even after a
+  restart — verify with `Get-NetTCPConnection -LocalPort <port>` (not just
+  `netstat`, which can show stale cached entries) that exactly one PID owns the
+  port, and prefer switching to a fresh port over fighting a stuck socket.
 - **NCERT TLS:** NCERT's WAF resets plain Python TLS; scraper/downloader use
   `curl_cffi` impersonating Chrome. (This dev sandbox also resets NCERT TLS — verify
   scans on the host network; the real server is unaffected.)
@@ -484,3 +625,6 @@ one-command release automation (`python -m automation ship`).
 | 2026-06-29 | v0.4.0 | Sprint 4 — Knowledge Extraction Engine (PyMuPDF deterministic PDF structure: text-layer detection, headings, paragraphs, tables, figures, bookmarks); generic document tables; document structure viewer; reuses acquisition jobs/worker. |
 | 2026-06-29 | v0.5.0 | Sprint 6 — Knowledge Mapping Engine (deterministic hierarchical `knowledge_nodes` tree from extracted structure; headings/bookmarks/flat strategies; auto-maps after extraction); navigation + search APIs; Knowledge Explorer. |
 | 2026-06-29 | v0.5.0 | Maintenance — Adapted bundled NDF automation for QVault: root `ndf.config.toml`, comprehensive `.gitignore`, one-command `ship` release flow, porcelain-parse fix; Git initialized and pushed to github.com/JanaPonnusamy/QVault (`main`, tag `v0.5.0`). |
+| 2026-07-05 | v0.7.0 | Refactor — **source-agnostic video ingestion**: introduced `integrations/video_providers.py` (`VideoProvider` protocol + registry + per-provider `classify_frames` policy); the extraction worker now selects the downloader via `get_provider(job.source)` and gates classification off the provider flag, removing all source-string branching from the pipeline. Adding Facebook/TikTok/X/Vimeo/local-MP4 is now a provider registration only. 5 provider tests added (21 total). |
+| 2026-07-05 | v0.7.0 | Phase 3 — **Instagram Acquisition Module**: reused the YouTube video pipeline (extraction jobs/frames/questions, extraction worker, `ExtractionService`/`AnalysisService`, FFmpeg, RapidOCR) via a `source` discriminator + Instagram metadata columns (no new tables); generic yt-dlp downloader (Reels/Posts + caption/author/upload_date/thumbnail); deterministic content classifier (heading/paragraph/question/options/answer/diagram/table, no AI); `/api/sources/instagram/*` router + `instagram` RBAC; Instagram Acquisition UI (stats, progress stages, frame+classification gallery, review, export); 16 tests. |
+| 2026-06-29 | v0.6.0 | Platform Phase 1 — analyzed Nexora reference (no platform code copied; rationale recorded); dialect-aware **SQL Server** support (`db_backend`/`mssql_*`, `init_sqlserver.py`; live-verified) keeping existing SQLAlchemy auth/JWT/RBAC; **Content Assembly Engine** (`content_sections`/`content_blocks`, deterministic reconstruction, raw preserved); **Knowledge Reader** (Reader/Developer modes). |
