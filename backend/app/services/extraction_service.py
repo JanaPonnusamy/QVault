@@ -30,7 +30,8 @@ class ExtractionService:
         download) x effective sampling rate. Advisory only -- actual extraction
         may keep fewer frames once the selected strategy and filters run."""
         provider = get_provider(source)
-        meta = provider.probe(url)
+        probe = getattr(provider, "probe", None)
+        meta = probe(url) if probe else {}
         duration = meta.get("duration") or 0.0
         effective_fps = sampling_fps or meta.get("fps") or _ASSUMED_FPS_WHEN_UNKNOWN
         return {

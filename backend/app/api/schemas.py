@@ -3,6 +3,16 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+VALID_SAMPLING_FPS = {None, 30.0, 15.0, 10.0, 5.0, 2.0, 1.0}
+
+
+def _check_sampling_fps(value: float | None) -> float | None:
+    if value not in VALID_SAMPLING_FPS:
+        raise ValueError(
+            f"sampling_fps must be one of {sorted(v for v in VALID_SAMPLING_FPS if v is not None)} or null"
+        )
+    return value
+
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -94,15 +104,17 @@ class JobCreate(BaseModel):
     @field_validator("sampling_fps")
     @classmethod
     def _valid_sampling_fps(cls, value: float | None) -> float | None:
-        allowed = {None, 30.0, 15.0, 10.0, 5.0, 2.0, 1.0}
-        if value not in allowed:
-            raise ValueError(f"sampling_fps must be one of {sorted(v for v in allowed if v is not None)} or null")
-        return value
+        return _check_sampling_fps(value)
 
 
 class EstimateRequest(BaseModel):
     url: str
     sampling_fps: float | None = 10.0
+
+    @field_validator("sampling_fps")
+    @classmethod
+    def _valid_sampling_fps(cls, value: float | None) -> float | None:
+        return _check_sampling_fps(value)
 
 
 class EstimateResponse(BaseModel):

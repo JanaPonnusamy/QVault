@@ -39,10 +39,12 @@ class VideoProvider(Protocol):
         """
         ...
 
-    def probe(self, ref: str) -> dict:
-        """Metadata-only probe (no download): ``{"duration": float, "fps": float}``.
-        Used for the pre-processing frame-count estimate."""
-        ...
+    # `probe(ref) -> {"duration": float, "fps": float}` is optional (duck-typed,
+    # checked with getattr) -- a metadata-only lookup for the pre-processing
+    # frame-count estimate. Providers that can't reasonably support one (e.g. a
+    # local-file source with no remote metadata) simply omit it; the estimate
+    # then falls back to zeros rather than every provider being forced to
+    # implement it.
 
 
 class YtDlpProvider:

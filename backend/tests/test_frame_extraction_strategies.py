@@ -141,7 +141,7 @@ class TestOCRTextChangeStrategy:
         repeat(skip) -> DNA Replication(save): exactly 3 kept frames."""
         frames_dir = text_change_video.parent / "ocr_only"
         frames = OCRTextChangeStrategy().extract(
-            str(text_change_video), frames_dir, ExtractionOptions(sample_interval=0.5), 4.5
+            str(text_change_video), frames_dir, ExtractionOptions(sampling_fps=2.0), 4.5
         )
         assert len(frames) == 3
         assert [ts for _, ts in frames] == [0.0, 1.5, 3.0]
@@ -151,7 +151,7 @@ class TestOCRTextChangeStrategy:
     def test_scratch_sampling_dir_is_cleaned_up(self, text_change_video):
         frames_dir = text_change_video.parent / "ocr_cleanup_check"
         OCRTextChangeStrategy().extract(
-            str(text_change_video), frames_dir, ExtractionOptions(sample_interval=0.5), 4.5
+            str(text_change_video), frames_dir, ExtractionOptions(sampling_fps=2.0), 4.5
         )
         assert not (frames_dir / "_sample").exists()
 
@@ -229,7 +229,7 @@ class TestExtractionOptions:
             strategy = "fixed_interval"
             interval = 0.5
             scene_threshold = 0.35
-            sample_interval = 0.5
+            sampling_fps = 2.0
             max_frames = None
             remove_duplicates = True
             keep_best_quality = True
