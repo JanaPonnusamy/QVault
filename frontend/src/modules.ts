@@ -13,6 +13,7 @@ export const MODULES: ModuleDef[] = [
   { key: "dashboard", label: "Dashboard", icon: "bi-grid-1x2", color: "#2563eb", path: "/", permission: "dashboard:view", group: "Overview", available: true },
 
   { key: "youtube_extractor", label: "YouTube", icon: "bi-youtube", color: "#ef4444", path: "/extractor", permission: "youtube_extractor:view", group: "Sources", available: true },
+  { key: "instagram", label: "Instagram", icon: "bi-instagram", color: "#d6249f", path: "/instagram", permission: "instagram:view", group: "Sources", available: true },
   { key: "ncert", label: "NCERT", icon: "bi-journal-bookmark", color: "#0891b2", path: "/ncert", permission: "ncert:view", group: "Sources", available: true },
   { key: "pdf_import", label: "PDF", icon: "bi-file-earmark-pdf", color: "#dc2626", group: "Sources", available: false },
   { key: "image_import", label: "Images", icon: "bi-file-earmark-image", color: "#7c3aed", group: "Sources", available: false },

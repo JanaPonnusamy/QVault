@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Documents from "./pages/Documents";
 import DocumentViewer from "./pages/DocumentViewer";
+import InstagramAcquisition from "./pages/InstagramAcquisition";
 import Knowledge from "./pages/Knowledge";
 import Login from "./pages/Login";
 import Ncert from "./pages/Ncert";
@@ -40,6 +41,7 @@ export default function App() {
       >
         <Route path="/" element={<Dashboard />} />
         <Route path="/extractor" element={<YouTubeExtractor />} />
+        <Route path="/instagram" element={<InstagramAcquisition />} />
         <Route path="/review/:jobId" element={<Review />} />
         <Route path="/ncert" element={<Ncert />} />
         <Route path="/documents" element={<Documents />} />

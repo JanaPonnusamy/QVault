@@ -28,12 +28,44 @@ export interface CurrentUser extends User {
   permissions: string[];
 }
 
+export type FrameExtractionStrategy = "fixed_interval" | "scene_detection" | "ocr_text_change" | "hybrid";
+
+export interface ExtractionOptions {
+  strategy: FrameExtractionStrategy;
+  interval: number | null;
+  scene_threshold: number;
+  sample_interval: number;
+  max_frames: number | null;
+  remove_duplicates: boolean;
+  keep_best_quality: boolean;
+  ignore_blank: boolean;
+  ignore_blurred: boolean;
+}
+
+export const DEFAULT_EXTRACTION_OPTIONS: ExtractionOptions = {
+  strategy: "hybrid",
+  interval: null,
+  scene_threshold: 0.35,
+  sample_interval: 0.5,
+  max_frames: null,
+  remove_duplicates: true,
+  keep_best_quality: true,
+  ignore_blank: true,
+  ignore_blurred: true,
+};
+
 export interface Job {
   id: number;
   url: string;
+  source: string;
   title: string;
   video_id: string;
   duration: number;
+  caption: string;
+  author: string;
+  upload_date: string;
+  thumbnail_url: string;
+  extraction_strategy: string;
   status: string;
   stage: string;
   progress: number;
@@ -51,6 +83,18 @@ export interface Frame {
   question_score: number;
   is_question: boolean;
   is_duplicate: boolean;
+  ocr_text?: string;
+  ocr_confidence?: number;
+  ocr_done?: boolean;
+  classification?: string[];
+}
+
+export interface InstagramStats {
+  total: number;
+  completed: number;
+  processing: number;
+  failed: number;
+  frames: number;
 }
 
 export interface NcertBook {
@@ -151,6 +195,37 @@ export interface DocStats {
   failed: number;
   needs_ocr: number;
   elements: number;
+}
+
+export interface ContentBlock {
+  id: number;
+  section_id: number | null;
+  block_type: string;
+  order_index: number;
+  text: string;
+  caption: string;
+  page: number;
+  source_element_ids: number[];
+  extra: { rows?: string[][]; n_rows?: number; n_cols?: number; width?: number; height?: number } | null;
+}
+
+export interface ContentSection {
+  id: number;
+  parent_id: number | null;
+  title: string;
+  level: number;
+  order_index: number;
+  page_start: number;
+  page_end: number;
+  blocks: ContentBlock[];
+}
+
+export interface AssembledDocument {
+  document_id: number;
+  title: string;
+  section_count: number;
+  block_count: number;
+  sections: ContentSection[];
 }
 
 export interface DownloadedBook {
