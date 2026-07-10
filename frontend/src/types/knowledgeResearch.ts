@@ -16,6 +16,26 @@ export interface KnowledgeSession {
     error_message: string | null;
     created_at: string;
     updated_at: string;
+    temperature?: number;
+    max_tokens?: number;
+    /* Aggregates returned by the sessions list endpoint. */
+    total_cost?: number;
+    total_tokens?: number;
+}
+
+export interface AiRun {
+    id: number;
+    session_id: number;
+    document_id: number | null;
+    stage: string;
+    provider: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    estimated_cost: number;
+    latency_ms: number;
+    status: string;
+    created_at: string;
 }
 
 export interface DocumentAnalysis {
@@ -41,6 +61,8 @@ export interface KnowledgeDocument {
     status: string;
     error_message: string | null;
     analysis: DocumentAnalysis | null;
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface KnowledgeFact {
@@ -118,14 +140,27 @@ export interface KnowledgeResults {
     facts: KnowledgeFact[];
     entities: KnowledgeEntity[];
     consensus: KnowledgeConsensus | null;
+    ai_runs: AiRun[];
     report: KnowledgeReport | null;
 }
 
+export interface ProviderInfo {
+    name: string;
+    label: string;
+    configured: boolean;
+    requires_key: boolean;
+    key_env: string;
+    default_model: string;
+}
+
 export interface KnowledgeProviders {
+    providers: ProviderInfo[];
     llm_providers: string[];
     source_types: string[];
     default_provider: string;
     default_model: string;
+    default_temperature: number;
+    default_max_tokens: number;
 }
 
 export interface SessionCreateRequest {
@@ -135,6 +170,8 @@ export interface SessionCreateRequest {
     source_type: string;
     ai_provider: string;
     ai_model: string;
+    temperature: number;
+    max_tokens: number;
 }
 
 export interface HistoryFilters {

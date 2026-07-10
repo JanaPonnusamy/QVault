@@ -3,7 +3,13 @@ import json
 
 from app.config.knowledge_config import KnowledgeConfig
 from app.models.llm_result import LLMResult
-from app.services.llm_providers.openai_provider import OpenAIProvider
+from app.services.llm_providers.openai_provider import (
+    AnthropicProvider,
+    GoogleProvider,
+    OllamaProvider,
+    OpenAIProvider,
+    OpenRouterProvider,
+)
 
 
 class LLMService:
@@ -12,7 +18,11 @@ class LLMService:
     provider SDK. Add a new provider by registering it in ``_PROVIDERS``."""
 
     _PROVIDERS = {
+        "openrouter": OpenRouterProvider,
         "openai": OpenAIProvider,
+        "anthropic": AnthropicProvider,
+        "google": GoogleProvider,
+        "ollama": OllamaProvider,
     }
 
     def __init__(self, provider=None):
@@ -28,6 +38,10 @@ class LLMService:
 
         self.provider_name = provider_name
         self._provider = provider_cls()
+
+    def list_models(self):
+        """Model ids available on the active provider's endpoint."""
+        return self._provider.list_models()
 
     def generate(
         self,

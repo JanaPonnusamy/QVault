@@ -167,6 +167,174 @@ body {
   margin-bottom: 14px;
 }
 
+/* Knowledge Research page. Uses Bootstrap semantic CSS variables so the page
+   follows data-bs-theme (light/dark) instead of hardcoding colors. */
+.qv-research {
+  max-width: 960px;
+  margin: 0 auto;
+}
+.qv-research .card {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.qv-research .card-header {
+  background: transparent;
+  border-bottom: 1px solid var(--bs-border-color-translucent);
+  padding: 0.85rem 1.25rem;
+  border-radius: 14px 14px 0 0 !important;
+}
+.qv-step-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--qv-accent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  flex: none;
+}
+.qv-choice {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  transition: border-color 0.12s ease, background 0.12s ease;
+  height: 100%;
+}
+.qv-choice:hover {
+  border-color: var(--qv-accent);
+}
+.qv-choice.active {
+  border-color: var(--qv-accent);
+  background: rgba(37, 99, 235, 0.06);
+  box-shadow: inset 0 0 0 1px var(--qv-accent);
+}
+.qv-choice .form-check-input {
+  margin-top: 3px;
+  flex: none;
+}
+.qv-range-marks {
+  position: relative;
+  height: 1.05rem;
+  font-size: 0.75rem;
+  color: var(--bs-secondary-color);
+}
+.qv-range-marks span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+.qv-range-marks span:first-child {
+  transform: none;
+}
+.qv-range-marks span:last-child {
+  transform: translateX(-100%);
+}
+.qv-sticky-actions {
+  position: sticky;
+  bottom: 16px;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.qv-sticky-actions .btn {
+  pointer-events: auto;
+  border-radius: 50rem;
+  box-shadow: 0 10px 30px rgba(37, 99, 235, 0.35);
+}
+.qv-stat {
+  border: 1px solid var(--bs-border-color-translucent);
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: var(--bs-body-bg);
+  height: 100%;
+  min-width: 0;
+}
+.qv-stat .qv-stat-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+.qv-stat .qv-stat-value {
+  font-weight: 600;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qv-log {
+  background: #0f172a;
+  color: #cbd5e1;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.78rem;
+  border-radius: 10px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px 14px;
+}
+.qv-log .qv-log-time {
+  color: #64748b;
+  margin-right: 8px;
+}
+.qv-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 1049;
+}
+.qv-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(460px, 100vw);
+  background: var(--bs-body-bg, #fff);
+  z-index: 1050;
+  box-shadow: -12px 0 40px rgba(15, 23, 42, 0.18);
+  display: flex;
+  flex-direction: column;
+  animation: qv-drawer-in 0.18s ease;
+}
+@keyframes qv-drawer-in {
+  from {
+    transform: translateX(40px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.qv-drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--bs-border-color-translucent);
+}
+.qv-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+}
+.qv-history-item {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.qv-history-item + .qv-history-item {
+  margin-top: 10px;
+}
+
 /* Frame gallery */
 .qv-frame {
   border: 3px solid transparent;

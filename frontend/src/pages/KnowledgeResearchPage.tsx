@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
-import ResearchForm from "../components/knowledge-research/ResearchForm";
+import HistoryDrawer from "../components/knowledge-research/HistoryDrawer";
 import ProgressTracker from "../components/knowledge-research/ProgressTracker";
+import ResearchForm from "../components/knowledge-research/ResearchForm";
 import ResultsView from "../components/knowledge-research/ResultsView";
+import SettingsDrawer from "../components/knowledge-research/SettingsDrawer";
 
 import {
+    cancelSession,
     createSession,
     getProviders,
     getResults,
-    getSession,
 } from "../services/knowledgeResearchApi";
 
 import {
@@ -21,10 +23,13 @@ import {
 
 const POLL_INTERVAL_MS = 3000;
 
+const TERMINAL_STATUSES = ["COMPLETED", "FAILED", "CANCELLED"];
+
 export default function KnowledgeResearchPage() {
 
     const { sessionId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const [providers, setProviders] =
         useState<KnowledgeProviders | null>(null);
@@ -36,7 +41,15 @@ export default function KnowledgeResearchPage() {
         useState<KnowledgeResults | null>(null);
 
     const [submitting, setSubmitting] = useState(false);
+    const [cancelling, setCancelling] = useState(false);
     const [error, setError] = useState("");
+
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+
+    const prefill = (location.state as {
+        prefill?: Partial<SessionCreateRequest>;
+    } | null)?.prefill;
 
     const pollRef = useRef<number | null>(null);
 
@@ -56,15 +69,12 @@ export default function KnowledgeResearchPage() {
     const refresh = useCallback(
         async (id: number) => {
             try {
-                const current = await getSession(id);
-                setSession(current);
+                const current = await getResults(id);
 
-                if (current.status === "COMPLETED") {
-                    stopPolling();
-                    setResults(await getResults(id));
-                }
+                setSession(current.session);
+                setResults(current);
 
-                if (current.status === "FAILED") {
+                if (TERMINAL_STATUSES.includes(current.session.status)) {
                     stopPolling();
                 }
             }
@@ -117,54 +127,119 @@ export default function KnowledgeResearchPage() {
         }
     }
 
+    async function handleCancel() {
+        const id = Number(sessionId);
+
+        if (!id) {
+            return;
+        }
+
+        setCancelling(true);
+
+        try {
+            await cancelSession(id);
+            await refresh(id);
+        }
+        catch (cancelError: any) {
+            setError(
+                cancelError?.response?.data?.detail ||
+                "Failed to cancel session."
+            );
+        }
+        finally {
+            setCancelling(false);
+        }
+    }
+
+    function handleDuplicate(values: Partial<SessionCreateRequest>) {
+        navigate("/research", { state: { prefill: values } });
+    }
+
+    const showResults =
+        session?.status === "COMPLETED" && results?.report !== undefined;
+
     return (
-        <div className="p-6 space-y-6">
+        <div className="qv-research d-flex flex-column gap-4 pb-2">
 
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold">
-                        Knowledge Research
-                    </h1>
-
-                    <p className="text-zinc-500 mt-2">
-                        AI-powered research from multiple sources
+            {/* Header */}
+            <div className="d-flex align-items-start justify-content-between gap-3 flex-wrap flex-md-nowrap">
+                <div style={{ minWidth: 0 }}>
+                    <h1 className="h3 fw-bold mb-1">Knowledge Research</h1>
+                    <p className="text-secondary mb-0">
+                        Research any topic across sources and distill it into
+                        facts, consensus and a report — powered by the AI
+                        provider of your choice.
                     </p>
                 </div>
 
-                <Link
-                    className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-sm"
-                    to="/research/history"
-                >
-                    History
-                </Link>
+                <div className="d-flex gap-2 flex-shrink-0">
+                    <button
+                        className="btn btn-outline-secondary"
+                        onClick={() => setHistoryOpen(true)}
+                    >
+                        <i className="bi bi-clock-history me-2" />
+                        History
+                    </button>
+                    <button
+                        className="btn btn-outline-secondary"
+                        onClick={() => setSettingsOpen(true)}
+                        aria-label="Settings"
+                    >
+                        <i className="bi bi-gear" />
+                    </button>
+                </div>
             </div>
 
             {error && (
-                <div className="text-sm text-red-400 border border-red-900 rounded p-3 bg-red-950/30">
+                <div className="alert alert-danger d-flex align-items-center mb-0">
+                    <i className="bi bi-exclamation-octagon me-2" />
                     {error}
                 </div>
             )}
 
             {!sessionId && (
                 <ResearchForm
+                    key={JSON.stringify(prefill) || "blank"}
                     providers={providers}
                     submitting={submitting}
+                    prefill={prefill}
                     onStart={handleStart}
+                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
-            {session && <ProgressTracker session={session} />}
+            {session && (
+                <ProgressTracker
+                    session={session}
+                    results={results}
+                    cancelling={cancelling}
+                    onCancel={handleCancel}
+                />
+            )}
 
-            {results && <ResultsView results={results} />}
+            {showResults && results && <ResultsView results={results} />}
 
             {sessionId && (
-                <Link
-                    className="inline-block text-sm text-sky-400 hover:underline"
-                    to="/research"
-                >
-                    Start a new research session
-                </Link>
+                <div>
+                    <Link className="btn btn-outline-primary" to="/research">
+                        <i className="bi bi-plus-lg me-2" />
+                        New Research
+                    </Link>
+                </div>
             )}
+
+            <HistoryDrawer
+                open={historyOpen}
+                onClose={() => setHistoryOpen(false)}
+                onOpenSession={id => navigate(`/research/${id}`)}
+                onDuplicate={handleDuplicate}
+            />
+
+            <SettingsDrawer
+                open={settingsOpen}
+                providers={providers}
+                onClose={() => setSettingsOpen(false)}
+            />
 
         </div>
     );

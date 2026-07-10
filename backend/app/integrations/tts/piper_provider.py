@@ -23,7 +23,14 @@ class PiperProvider:
         label = Path(model).stem if model else "configured model"
         return [{"id": "default", "label": label, "language": "", "gender": ""}]
 
-    def synthesize(self, text: str, voice: str | None, out_path: Path) -> SynthesisResult:
+    def synthesize(
+        self,
+        text: str,
+        voice: str | None,
+        out_path: Path,
+        rate: str | None = None,  # piper exposes no rate/pitch controls
+        pitch: str | None = None,
+    ) -> SynthesisResult:
         subprocess.run(
             [
                 settings.tts_piper_exe,

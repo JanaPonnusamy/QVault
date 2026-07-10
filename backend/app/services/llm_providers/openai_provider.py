@@ -14,29 +14,46 @@ _PRICING = {
     "openai/gpt-4o-mini": (0.00015, 0.0006),
     "gpt-4o": (0.0025, 0.01),
     "openai/gpt-4o": (0.0025, 0.01),
+    "gpt-4.1-mini": (0.0004, 0.0016),
+    "openai/gpt-4.1-mini": (0.0004, 0.0016),
 }
 
 
-class OpenAIProvider(BaseLLMProvider):
-    """OpenAI-compatible provider. Works with OpenAI and any OpenAI-compatible
-    endpoint (OpenRouter, Azure OpenAI proxies, local servers) by pointing the
-    base URL at the target. Isolated here so business logic never touches the SDK."""
+class OpenAICompatibleProvider(BaseLLMProvider):
+    """Shared implementation for every provider that exposes an
+    OpenAI-compatible chat-completions endpoint (OpenRouter, OpenAI, Anthropic,
+    Google Gemini, Ollama). Subclasses only declare ``name``; key, base URL and
+    default model come from the provider registry in KnowledgeConfig. Isolated
+    here so business logic never touches the SDK."""
 
-    name = "openai"
+    name = "openai-compatible"
 
     MAX_RETRIES = 3
     RETRY_BACKOFF_SECONDS = 2
 
     def __init__(self):
-        api_key = KnowledgeConfig.openai_api_key()
-        base_url = KnowledgeConfig.openai_base_url()
+        spec = KnowledgeConfig.provider_spec(self.name)
 
-        if not api_key:
+        if spec is None:
+            raise RuntimeError(f"Unknown provider '{self.name}'.")
+
+        api_key = KnowledgeConfig.provider_api_key(self.name)
+
+        if spec["requires_key"] and not api_key:
             raise RuntimeError(
-                "OPENAI_API_KEY is not configured. Set it in config/.env."
+                f"{spec['key_env']} is not configured. Set it in config/.env."
             )
 
-        self._client = OpenAI(api_key=api_key, base_url=base_url)
+        self._client = OpenAI(
+            # The SDK requires a non-empty key even for keyless local
+            # endpoints such as Ollama.
+            api_key=api_key or "not-required",
+            base_url=KnowledgeConfig.provider_base_url(self.name),
+        )
+
+    def list_models(self):
+        """Model ids available on this provider's endpoint, sorted."""
+        return sorted(model.id for model in self._client.models.list())
 
     def generate(
         self,
@@ -48,7 +65,13 @@ class OpenAIProvider(BaseLLMProvider):
         json_mode,
     ) -> LLMResult:
 
-        model = model or KnowledgeConfig.default_model()
+        model = model or KnowledgeConfig.provider_default_model(self.name)
+
+        if not model:
+            raise RuntimeError(
+                f"No model specified and no default model configured for "
+                f"provider '{self.name}'."
+            )
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -118,3 +141,23 @@ class OpenAIProvider(BaseLLMProvider):
             + (output_tokens / 1000.0) * output_rate,
             6,
         )
+
+
+class OpenRouterProvider(OpenAICompatibleProvider):
+    name = "openrouter"
+
+
+class OpenAIProvider(OpenAICompatibleProvider):
+    name = "openai"
+
+
+class AnthropicProvider(OpenAICompatibleProvider):
+    name = "anthropic"
+
+
+class GoogleProvider(OpenAICompatibleProvider):
+    name = "google"
+
+
+class OllamaProvider(OpenAICompatibleProvider):
+    name = "ollama"

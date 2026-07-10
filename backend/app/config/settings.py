@@ -64,7 +64,9 @@ class Settings(BaseSettings):
 
     # --- TTS (provider-abstracted; see integrations/tts) ---
     tts_provider: str = "edge"
-    tts_voice: str = "en-IN-NeerjaNeural"
+    # Pallavi speaking the English script gives Tamil Nadu accented English;
+    # the edge provider adds a base pitch lift for a younger (early-20s) tone.
+    tts_voice: str = "ta-IN-PallaviNeural"
     tts_rate: str = "-4%"  # slightly slower than default for natural pacing
     tts_pitch: str = "+0Hz"
     tts_openai_api_key: str | None = None

@@ -49,3 +49,25 @@ export async function listSessions(
     });
     return response.data.sessions;
 }
+
+export async function getProviderModels(
+    provider: string
+): Promise<string[]> {
+    const response = await apiClient.get(
+        `/api/research/providers/${provider}/models`
+    );
+    return response.data.models;
+}
+
+export async function cancelSession(
+    sessionId: number
+): Promise<KnowledgeSession> {
+    const response = await apiClient.post(
+        `/api/research/sessions/${sessionId}/cancel`
+    );
+    return response.data;
+}
+
+export async function deleteSession(sessionId: number): Promise<void> {
+    await apiClient.delete(`/api/research/sessions/${sessionId}`);
+}

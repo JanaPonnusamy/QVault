@@ -8,7 +8,7 @@ export default function ConsensusPanel({ consensus }: Props) {
 
     if (!consensus) {
         return (
-            <div className="text-sm text-zinc-500">
+            <div className="text-secondary">
                 No consensus available. Consensus is generated for topic
                 research with two or more successful sources.
             </div>
@@ -16,115 +16,117 @@ export default function ConsensusPanel({ consensus }: Props) {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="d-flex flex-column gap-4">
 
-            <div className="text-sm text-zinc-400">
+            <div className="text-secondary">
                 Overall confidence:{" "}
-                <span className="text-emerald-400 font-medium">
+                <span className="fw-semibold text-success">
                     {(consensus.confidence * 100).toFixed(0)}%
                 </span>
             </div>
 
             {!!consensus.common_practices?.length && (
                 <div>
-                    <h3 className="font-medium mb-2">Common Practices</h3>
+                    <h5 className="fw-semibold mb-2">Common Practices</h5>
 
-                    <ul className="space-y-2">
+                    <div className="d-flex flex-column gap-2">
                         {consensus.common_practices.map((practice, index) => (
-                            <li
-                                key={index}
-                                className="text-sm border border-zinc-800 rounded p-3 bg-zinc-900/40"
-                            >
+                            <div key={index} className="qv-history-item">
                                 <div>{practice.practice}</div>
-                                <div className="text-xs text-zinc-500 mt-1">
-                                    {(practice.confidence * 100).toFixed(0)}% -{" "}
-                                    {practice.supported_by?.join(", ")}
+                                <div className="small text-secondary mt-1">
+                                    {(practice.confidence * 100).toFixed(0)}%
+                                    confidence
+                                    {practice.supported_by?.length
+                                        ? ` — ${practice.supported_by.join(", ")}`
+                                        : ""}
                                 </div>
-                            </li>
+                            </div>
                         ))}
-                    </ul>
+                    </div>
                 </div>
             )}
 
             {!!consensus.differences?.length && (
                 <div>
-                    <h3 className="font-medium mb-2">Differences</h3>
+                    <h5 className="fw-semibold mb-2">Differences</h5>
 
-                    <ul className="space-y-2">
+                    <div className="d-flex flex-column gap-2">
                         {consensus.differences.map((difference, index) => (
-                            <li
-                                key={index}
-                                className="text-sm border border-zinc-800 rounded p-3 bg-zinc-900/40"
-                            >
-                                <div className="font-medium">
+                            <div key={index} className="qv-history-item">
+                                <div className="fw-medium">
                                     {difference.aspect}
                                 </div>
 
-                                <ul className="mt-1 space-y-1">
+                                <ul className="mb-0 mt-1 small">
                                     {difference.positions?.map(
                                         (position, positionIndex) => (
-                                            <li
-                                                key={positionIndex}
-                                                className="text-zinc-400"
-                                            >
-                                                <span className="text-zinc-300">
+                                            <li key={positionIndex}>
+                                                <span className="fw-medium">
                                                     {position.source}:
                                                 </span>{" "}
-                                                {position.position}
+                                                <span className="text-secondary">
+                                                    {position.position}
+                                                </span>
                                             </li>
                                         )
                                     )}
                                 </ul>
-                            </li>
+                            </div>
                         ))}
-                    </ul>
+                    </div>
                 </div>
             )}
 
             {!!consensus.conflicting_advice?.length && (
                 <div>
-                    <h3 className="font-medium mb-2">Conflicting Advice</h3>
+                    <h5 className="fw-semibold mb-2">Conflicting Advice</h5>
 
-                    <ul className="space-y-2">
-                        {consensus.conflicting_advice.map((conflict, index) => (
-                            <li
-                                key={index}
-                                className="text-sm border border-amber-900/60 rounded p-3 bg-amber-950/20"
-                            >
-                                <div className="font-medium">
-                                    {conflict.topic}
+                    <div className="d-flex flex-column gap-2">
+                        {consensus.conflicting_advice.map(
+                            (conflict, index) => (
+                                <div
+                                    key={index}
+                                    className="alert alert-warning mb-0"
+                                >
+                                    <div className="fw-medium">
+                                        {conflict.topic}
+                                    </div>
+                                    <div className="mt-1">
+                                        {conflict.conflict}
+                                    </div>
+                                    {!!conflict.sources?.length && (
+                                        <div className="small text-secondary mt-1">
+                                            {conflict.sources.join(", ")}
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="text-zinc-400 mt-1">
-                                    {conflict.conflict}
-                                </div>
-                                <div className="text-xs text-zinc-500 mt-1">
-                                    {conflict.sources?.join(", ")}
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
+                            )
+                        )}
+                    </div>
                 </div>
             )}
 
             {consensus.recommendation && (
                 <div>
-                    <h3 className="font-medium mb-2">Final Recommendation</h3>
+                    <h5 className="fw-semibold mb-2">Final Recommendation</h5>
 
-                    <div className="text-sm border border-emerald-900/60 rounded p-3 bg-emerald-950/20 space-y-2">
+                    <div className="alert alert-success mb-0">
                         <div>{consensus.recommendation.summary}</div>
 
                         {!!consensus.recommendation.steps?.length && (
-                            <ol className="list-decimal list-inside space-y-1 text-zinc-300">
+                            <ol className="mb-0 mt-2">
                                 {consensus.recommendation.steps.map(
                                     (step, index) => (
-                                        <li key={index}>{step}</li>
+                                        <li key={index} className="mb-1">
+                                            {step}
+                                        </li>
                                     )
                                 )}
                             </ol>
                         )}
 
                         {consensus.recommendation.rationale && (
-                            <div className="text-xs text-zinc-500">
+                            <div className="small text-secondary mt-2">
                                 {consensus.recommendation.rationale}
                             </div>
                         )}

@@ -151,6 +151,26 @@ class KnowledgeRepository:
             """
         )
 
+        # Additive migrations for databases created before these columns.
+        existing = {
+            row[1]
+            for row in conn.execute(
+                "PRAGMA table_info(knowledge_sessions)"
+            ).fetchall()
+        }
+
+        if "temperature" not in existing:
+            conn.execute(
+                "ALTER TABLE knowledge_sessions "
+                "ADD COLUMN temperature REAL DEFAULT 0.2"
+            )
+
+        if "max_tokens" not in existing:
+            conn.execute(
+                "ALTER TABLE knowledge_sessions "
+                "ADD COLUMN max_tokens INTEGER DEFAULT 4000"
+            )
+
         conn.commit()
         conn.close()
 
@@ -166,6 +186,8 @@ class KnowledgeRepository:
         ai_model,
         storage_directory,
         pipeline_version,
+        temperature=0.2,
+        max_tokens=4000,
     ):
         conn = self.connect()
 
@@ -174,13 +196,15 @@ class KnowledgeRepository:
             INSERT INTO knowledge_sessions (
                 mode, input_value, source_count_requested, source_type,
                 ai_provider, ai_model, status, current_stage, progress,
-                storage_directory, pipeline_version, created_at, updated_at
+                storage_directory, pipeline_version, temperature, max_tokens,
+                created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, 'QUEUED', 'QUEUED', 0, ?, ?, datetime('now'), datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, 'QUEUED', 'QUEUED', 0, ?, ?, ?, ?, datetime('now'), datetime('now'))
             """,
             (
                 mode, input_value, source_count_requested, source_type,
                 ai_provider, ai_model, storage_directory, pipeline_version,
+                temperature, max_tokens,
             ),
         )
 
@@ -303,13 +327,51 @@ class KnowledgeRepository:
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
 
         rows = conn.execute(
-            f"SELECT * FROM knowledge_sessions {where} ORDER BY id DESC",
+            f"""
+            SELECT
+                s.*,
+                COALESCE(r.total_cost, 0)   AS total_cost,
+                COALESCE(r.total_tokens, 0) AS total_tokens
+            FROM knowledge_sessions s
+            LEFT JOIN (
+                SELECT
+                    session_id,
+                    SUM(estimated_cost) AS total_cost,
+                    SUM(input_tokens + output_tokens) AS total_tokens
+                FROM knowledge_ai_runs
+                GROUP BY session_id
+            ) r ON r.session_id = s.id
+            {where}
+            ORDER BY s.id DESC
+            """,
             params,
         ).fetchall()
 
         conn.close()
 
         return [dict(row) for row in rows]
+
+    def delete_session(self, session_id):
+        """Remove a session and every row that references it."""
+        conn = self.connect()
+
+        for table in (
+            "knowledge_ai_runs",
+            "knowledge_consensus",
+            "knowledge_entities",
+            "knowledge_facts",
+            "knowledge_documents",
+        ):
+            conn.execute(
+                f"DELETE FROM {table} WHERE session_id = ?", (session_id,)
+            )
+
+        conn.execute(
+            "DELETE FROM knowledge_sessions WHERE id = ?", (session_id,)
+        )
+
+        conn.commit()
+        conn.close()
 
     # --------------------------------------------------------- documents --
 

@@ -28,6 +28,19 @@ from app.shared.logging import get_logger
 logger = get_logger("video_timeline")
 
 COUNTDOWN_SECONDS = 3
+
+# Per-role voice modulation (rate, pitch): energetic hook/outro, measured
+# options, excited reveal, calm explanation. Providers without prosody
+# support ignore these; the TTS cache key includes them.
+ROLE_MODULATION: dict[str, tuple[str, str]] = {
+    "intro": ("+2%", "+18Hz"),
+    "question": ("-4%", "+6Hz"),
+    "option": ("-6%", "+0Hz"),
+    "think": ("-4%", "+10Hz"),
+    "reveal": ("-2%", "+14Hz"),
+    "explanation": ("-8%", "-2Hz"),
+    "outro": ("+2%", "+16Hz"),
+}
 QUESTION_CARD_LEAD = 0.35  # card animates in before its narration starts
 ANSWER_CARD_DELAY = 0.9  # answer card slides in while reveal narration plays
 SCENE_TAIL = 0.35  # transition gap between questions
@@ -147,7 +160,9 @@ class VideoTimelineService:
 
         synth: list[tuple[ScriptSegment, float, list[WordTiming], Path]] = []
         for i, segment in enumerate(segments):
-            path, duration, words = self._synthesize_cached(provider, segment.text, voice)
+            path, duration, words = self._synthesize_cached(
+                provider, segment.text, voice, segment.role
+            )
             synth.append((segment, duration, words, path))
             if progress:
                 progress(int(5 + 40 * (i + 1) / len(segments)), "Synthesizing narration")
@@ -165,12 +180,11 @@ class VideoTimelineService:
             )
         return self._layout(questions, kind, category, synth)
 
-    def _synthesize_cached(self, provider, text: str, voice: str | None):
+    def _synthesize_cached(self, provider, text: str, voice: str | None, role: str):
         effective_voice = voice or settings.tts_voice
+        rate, pitch = ROLE_MODULATION.get(role, (settings.tts_rate, settings.tts_pitch))
         key = hashlib.sha1(
-            "|".join(
-                [provider.name, effective_voice, settings.tts_rate, settings.tts_pitch, text]
-            ).encode("utf-8")
+            "|".join([provider.name, effective_voice, rate, pitch, text]).encode("utf-8")
         ).hexdigest()
         audio_path = self.cache_dir / f"{key}.mp3"
         meta_path = self.cache_dir / f"{key}.json"
@@ -179,7 +193,7 @@ class VideoTimelineService:
             words = [WordTiming(**w) for w in meta["words"]]
             return audio_path, meta["duration"], words
 
-        result = provider.synthesize(text, effective_voice, audio_path)
+        result = provider.synthesize(text, effective_voice, audio_path, rate=rate, pitch=pitch)
         words = result.words or _estimate_words(text, result.duration)
         meta_path.write_text(
             json.dumps(

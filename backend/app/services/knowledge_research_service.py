@@ -1,4 +1,5 @@
 ﻿import json
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,6 +12,10 @@ from app.services.knowledge_executor import BackgroundTaskExecutor
 from app.services.knowledge_extraction_service import KnowledgeExtractionService
 from app.services.llm_service import LLMService
 from app.services.source_search_service import SourceSearchService
+
+
+class SessionCancelled(Exception):
+    """Raised inside the pipeline when the user cancelled the session."""
 
 
 class KnowledgeResearchService:
@@ -35,6 +40,8 @@ class KnowledgeResearchService:
         source_type,
         ai_provider,
         ai_model,
+        temperature=0.2,
+        max_tokens=4000,
     ):
         mode = mode.upper()
 
@@ -53,6 +60,8 @@ class KnowledgeResearchService:
             ai_model=ai_model or KnowledgeConfig.default_model(),
             storage_directory="",
             pipeline_version=PIPELINE_VERSION,
+            temperature=float(temperature),
+            max_tokens=int(max_tokens),
         )
 
         storage_dir = ROOT / KnowledgeConfig.storage_root() / str(session_id)
@@ -66,6 +75,53 @@ class KnowledgeResearchService:
 
     def get_session(self, session_id):
         return self.repo.get_session(session_id)
+
+    def cancel_session(self, session_id):
+        """Request cancellation. The pipeline stops at its next checkpoint.
+        Returns the updated session, or None if it does not exist or is
+        already finished."""
+        session = self.repo.get_session(session_id)
+
+        if not session:
+            return None
+
+        if session["status"] in ("COMPLETED", "FAILED", "CANCELLED"):
+            return None
+
+        self.repo.update_session_progress(
+            session_id, "CANCELLED", "CANCELLED", session["progress"]
+        )
+
+        return self.repo.get_session(session_id)
+
+    def delete_session(self, session_id):
+        """Delete a finished session, its rows and its storage directory.
+        Returns False if the session does not exist; raises ValueError while
+        the session is still running."""
+        session = self.repo.get_session(session_id)
+
+        if not session:
+            return False
+
+        if session["status"] in ("QUEUED", "RUNNING"):
+            raise ValueError("Cancel the session before deleting it.")
+
+        storage_dir = session.get("storage_directory") or ""
+
+        self.repo.delete_session(session_id)
+
+        # Only remove directories the service itself created for this session.
+        storage_root = ROOT / KnowledgeConfig.storage_root()
+        candidate = Path(storage_dir) if storage_dir else None
+
+        if (
+            candidate
+            and candidate.is_dir()
+            and storage_root in candidate.parents
+        ):
+            shutil.rmtree(candidate, ignore_errors=True)
+
+        return True
 
     def list_sessions(self, **filters):
         return self.repo.list_sessions(**filters)
@@ -145,6 +201,8 @@ class KnowledgeResearchService:
             failures = []
 
             for index, source in enumerate(sources, start=1):
+                self._check_cancelled(session_id)
+
                 base = 5 + int(80 * (index - 1) / total)
                 span = 80 / total
 
@@ -215,6 +273,12 @@ class KnowledgeResearchService:
 
                     self.repo.update_document_status(document_id, "COMPLETED")
 
+                except SessionCancelled:
+                    self.repo.update_document_status(
+                        document_id, "FAILED", "Cancelled by user"
+                    )
+                    raise
+
                 except Exception as error:  # noqa: BLE001
                     failures.append(f"{source.title}: {error}")
                     self.repo.update_document_status(
@@ -239,6 +303,9 @@ class KnowledgeResearchService:
             self._generate_report(session, storage_dir, analyses, consensus)
 
             self._progress(session_id, "COMPLETED", 100)
+
+        except SessionCancelled:
+            pass  # status is already CANCELLED; leave progress as-is
 
         except Exception as error:  # noqa: BLE001
             self.repo.set_session_error(session_id, str(error)[:2000])
@@ -359,7 +426,8 @@ class KnowledgeResearchService:
         self, llm, session, document_id, stage,
         prompt_name, prompt_version, system_prompt, user_prompt, max_tokens,
     ):
-        temperature = 0.2
+        temperature = float(session.get("temperature") or 0.2)
+        max_tokens = int(session.get("max_tokens") or max_tokens)
 
         try:
             parsed, result = llm.generate_json(
@@ -617,8 +685,19 @@ class KnowledgeResearchService:
     # ------------------------------------------------------------- utils --
 
     def _progress(self, session_id, stage, percent):
+        # Every progress update doubles as a cancellation checkpoint, so a
+        # cancelled session stops at the next stage boundary and no update
+        # ever overwrites the CANCELLED status.
+        self._check_cancelled(session_id)
+
         status = stage if stage in ("COMPLETED", "FAILED") else "RUNNING"
         self.repo.update_session_progress(session_id, status, stage, percent)
+
+    def _check_cancelled(self, session_id):
+        session = self.repo.get_session(session_id)
+
+        if session and session["status"] == "CANCELLED":
+            raise SessionCancelled()
 
     @staticmethod
     def _read_json(path):

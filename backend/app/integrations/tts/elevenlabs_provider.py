@@ -26,7 +26,14 @@ class ElevenLabsProvider:
     def voices(self) -> list[dict]:
         return VOICES
 
-    def synthesize(self, text: str, voice: str | None, out_path: Path) -> SynthesisResult:
+    def synthesize(
+        self,
+        text: str,
+        voice: str | None,
+        out_path: Path,
+        rate: str | None = None,  # no prosody controls in the ElevenLabs API
+        pitch: str | None = None,
+    ) -> SynthesisResult:
         voice_id = voice or VOICES[0]["id"]
         response = httpx.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",

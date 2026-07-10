@@ -19,39 +19,51 @@ export default function ResultsView({ results }: Props) {
 
     const report = results.report;
 
-    return (
-        <div className="space-y-4">
+    function tabLabel(name: string) {
+        switch (name) {
+            case "Facts":
+                return `Facts (${results.facts.length})`;
+            case "Entities":
+                return `Entities (${results.entities.length})`;
+            case "Documents":
+                return `Documents (${results.documents.length})`;
+            default:
+                return name;
+        }
+    }
 
-            <div className="flex gap-2 flex-wrap">
-                {TABS.map(name => (
-                    <button
-                        key={name}
-                        className={`px-3 py-1.5 rounded text-sm ${
-                            tab === name
-                                ? "bg-emerald-600 text-white"
-                                : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-                        }`}
-                        onClick={() => setTab(name)}
-                    >
-                        {name}
-                        {name === "Facts" && ` (${results.facts.length})`}
-                        {name === "Entities" &&
-                            ` (${results.entities.length})`}
-                        {name === "Documents" &&
-                            ` (${results.documents.length})`}
-                    </button>
-                ))}
+    return (
+        <div className="card">
+
+            <div className="card-header pb-0">
+                <ul className="nav nav-tabs card-header-tabs flex-nowrap overflow-auto">
+                    {TABS.map(name => (
+                        <li className="nav-item" key={name}>
+                            <button
+                                className={`nav-link text-nowrap ${
+                                    tab === name ? "active" : ""
+                                }`}
+                                onClick={() => setTab(name)}
+                            >
+                                {tabLabel(name)}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
             </div>
 
-            <div className="border border-zinc-800 rounded-lg p-4 bg-zinc-900/40">
+            <div className="card-body">
 
                 {tab === "Report" && (
-                    <div className="space-y-6">
+                    <div className="d-flex flex-column gap-4">
                         <div>
-                            <h3 className="font-medium mb-2">
+                            <h5 className="fw-semibold mb-2">
                                 Executive Summary
-                            </h3>
-                            <p className="text-sm text-zinc-300 whitespace-pre-wrap">
+                            </h5>
+                            <p
+                                className="mb-0"
+                                style={{ whiteSpace: "pre-wrap" }}
+                            >
                                 {report?.executive_summary ||
                                     "No summary available."}
                             </p>
@@ -59,20 +71,22 @@ export default function ResultsView({ results }: Props) {
 
                         {!!report?.recommendation?.steps?.length && (
                             <div>
-                                <h3 className="font-medium mb-2">
+                                <h5 className="fw-semibold mb-2">
                                     Recommendations
-                                </h3>
+                                </h5>
 
                                 {report.recommendation.summary && (
-                                    <p className="text-sm text-zinc-300 mb-2">
+                                    <p className="mb-2">
                                         {report.recommendation.summary}
                                     </p>
                                 )}
 
-                                <ol className="list-decimal list-inside text-sm text-zinc-300 space-y-1">
+                                <ol className="mb-0">
                                     {report.recommendation.steps.map(
                                         (step, index) => (
-                                            <li key={index}>{step}</li>
+                                            <li key={index} className="mb-1">
+                                                {step}
+                                            </li>
                                         )
                                     )}
                                 </ol>
@@ -81,20 +95,24 @@ export default function ResultsView({ results }: Props) {
 
                         {!!report?.timeline?.length && (
                             <div>
-                                <h3 className="font-medium mb-2">Timeline</h3>
+                                <h5 className="fw-semibold mb-2">Timeline</h5>
 
-                                <ul className="text-sm text-zinc-300 space-y-1">
+                                <ul className="list-unstyled mb-0">
                                     {report.timeline.map((entry, index) => (
-                                        <li key={index}>
-                                            <span className="text-emerald-400">
-                                                {entry.step}.
-                                            </span>{" "}
-                                            <span className="font-medium">
+                                        <li key={index} className="mb-1">
+                                            <span className="badge text-bg-primary me-2">
+                                                {entry.step}
+                                            </span>
+                                            <span className="fw-medium">
                                                 {entry.label}
                                             </span>
-                                            {entry.timing &&
-                                                ` (${entry.timing})`}{" "}
-                                            - {entry.detail}
+                                            {entry.timing && (
+                                                <span className="text-secondary">
+                                                    {" "}
+                                                    ({entry.timing})
+                                                </span>
+                                            )}{" "}
+                                            — {entry.detail}
                                         </li>
                                     ))}
                                 </ul>
@@ -103,15 +121,18 @@ export default function ResultsView({ results }: Props) {
 
                         {!!report?.conflicts?.length && (
                             <div>
-                                <h3 className="font-medium mb-2">
-                                    Conflicts
-                                </h3>
+                                <h5 className="fw-semibold mb-2">Conflicts</h5>
 
-                                <ul className="text-sm text-amber-400 space-y-1">
+                                <ul className="mb-0">
                                     {report.conflicts.map(
                                         (conflict, index) => (
-                                            <li key={index}>
-                                                {conflict.topic}:{" "}
+                                            <li
+                                                key={index}
+                                                className="text-warning-emphasis mb-1"
+                                            >
+                                                <strong>
+                                                    {conflict.topic}:
+                                                </strong>{" "}
                                                 {conflict.conflict}
                                             </li>
                                         )

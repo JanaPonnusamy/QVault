@@ -28,12 +28,20 @@ class AzureProvider:
     def voices(self) -> list[dict]:
         return VOICES
 
-    def synthesize(self, text: str, voice: str | None, out_path: Path) -> SynthesisResult:
+    def synthesize(
+        self,
+        text: str,
+        voice: str | None,
+        out_path: Path,
+        rate: str | None = None,
+        pitch: str | None = None,
+    ) -> SynthesisResult:
         voice_id = voice or VOICES[0]["id"]
         lang = "-".join(voice_id.split("-")[:2])
+        prosody = f'<prosody rate="{rate or settings.tts_rate}" pitch="{pitch or settings.tts_pitch}">'
         ssml = (
             f'<speak version="1.0" xml:lang="{lang}">'
-            f'<voice name="{voice_id}">{escape(text)}</voice></speak>'
+            f'<voice name="{voice_id}">{prosody}{escape(text)}</prosody></voice></speak>'
         )
         response = httpx.post(
             f"https://{settings.tts_azure_region}.tts.speech.microsoft.com/cognitiveservices/v1",

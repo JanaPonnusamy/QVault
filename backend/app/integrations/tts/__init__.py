@@ -50,8 +50,19 @@ class TTSProvider(Protocol):
         """Curated voice list: ``{"id", "label", "language", "gender"}``."""
         ...
 
-    def synthesize(self, text: str, voice: str | None, out_path: Path) -> SynthesisResult:
-        """Write an audio file to ``out_path`` and return duration + word timings."""
+    def synthesize(
+        self,
+        text: str,
+        voice: str | None,
+        out_path: Path,
+        rate: str | None = None,
+        pitch: str | None = None,
+    ) -> SynthesisResult:
+        """Write an audio file to ``out_path`` and return duration + word timings.
+
+        ``rate`` ("-4%") and ``pitch`` ("+10Hz") carry per-segment voice
+        modulation; providers apply what their API supports and ignore the rest.
+        """
         ...
 
 

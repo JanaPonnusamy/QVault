@@ -34,7 +34,14 @@ class KokoroProvider:
     def voices(self) -> list[dict]:
         return VOICES
 
-    def synthesize(self, text: str, voice: str | None, out_path: Path) -> SynthesisResult:
+    def synthesize(
+        self,
+        text: str,
+        voice: str | None,
+        out_path: Path,
+        rate: str | None = None,  # kokoro exposes no rate/pitch controls
+        pitch: str | None = None,
+    ) -> SynthesisResult:
         import numpy as np
         import soundfile
         from kokoro import KPipeline

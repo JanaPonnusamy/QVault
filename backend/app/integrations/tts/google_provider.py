@@ -28,16 +28,30 @@ class GoogleProvider:
     def voices(self) -> list[dict]:
         return VOICES
 
-    def synthesize(self, text: str, voice: str | None, out_path: Path) -> SynthesisResult:
+    def synthesize(
+        self,
+        text: str,
+        voice: str | None,
+        out_path: Path,
+        rate: str | None = None,
+        pitch: str | None = None,
+    ) -> SynthesisResult:
         voice_id = voice or VOICES[0]["id"]
         language = "-".join(voice_id.split("-")[:2])
+        speaking_rate = max(0.25, min(4.0, 1.0 + float((rate or settings.tts_rate).rstrip("%")) / 100))
+        # Google takes pitch in semitones; ~12Hz per semitone around a female voice
+        semitones = max(-20.0, min(20.0, float((pitch or settings.tts_pitch).replace("Hz", "")) / 12))
         response = httpx.post(
             "https://texttospeech.googleapis.com/v1/text:synthesize",
             params={"key": settings.tts_google_api_key},
             json={
                 "input": {"text": text},
                 "voice": {"languageCode": language, "name": voice_id},
-                "audioConfig": {"audioEncoding": "MP3"},
+                "audioConfig": {
+                    "audioEncoding": "MP3",
+                    "speakingRate": speaking_rate,
+                    "pitch": semitones,
+                },
             },
             timeout=120,
         )
