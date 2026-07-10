@@ -14,3 +14,5 @@ curl_cffi
 PyMuPDF
 pytest
 httpx
+openai
+faster-whisper

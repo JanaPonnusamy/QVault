@@ -20,12 +20,21 @@ sprint finishes. Keep this file accurate after every sprint (see CLAUDE.md rule 
 - NCERT enhancements: cover thumbnails, per-chapter download, job cancellation
 - Hardening: durable job queue, JWT refresh tokens, audit logs, system metrics
 - User Portal (student modules)
+- Knowledge Research refactor onto house architecture: port raw-sqlite3 repository to SQLAlchemy (SQL Server support), route background work through the acquisition worker, merge duplicate yt-dlp/OCR wrappers into `integrations/`, PDF/audio/image/website extractors, more LLM providers
 
 ## IN PROGRESS
 
 - _(none)_
 
 ## COMPLETED
+
+### Knowledge Research Engine (v0.9.0)
+- New `research` module: AI research from a single YouTube URL (Mode A) or topic → top-N videos (Mode B) — extraction (Whisper transcript + subtitles + frame OCR) → LLM analysis (structured JSON: facts/entities/timeline/recommendations/warnings) → cross-source consensus → JSON + Markdown report
+- **Copied verbatim from the NexusYTSync implementation and wired into QVault per explicit instruction (copy + wire, no redesign)** — wiring-only changes: router prefix `/api/research` (existing knowledge module owns `/api/knowledge`), `require_permission` guards + `research` RBAC module seeded, `database_manager.py` shim → `qvault.db`, frontend api client → QVault's authenticated axios, module registered in `modules.ts` + routes in `App.tsx`, Tailwind v3 utilities-only (preflight off, module-scoped content globs) so Bootstrap pages are untouched
+- Provider-abstracted LLM layer (`llm_service.py` registry; OpenAI-compatible provider serving OpenRouter, retry + JSON mode + token/cost/latency metadata) and source-search layer (YouTube `ytsearchN:`); versioned prompts; every LLM call recorded in `knowledge_ai_runs`
+- 6 new tables (`knowledge_sessions/documents/facts/entities/consensus/ai_runs`); large text on disk under `storage/knowledge/<session>/`, DB stores paths only; media deleted after extraction
+- Verified live inside QVault: RBAC login → Mode A session on a real YouTube URL → COMPLETED 100% with facts/entities/ai-run rows + report.json/report.md; frontend builds clean; vite proxy → :8004 verified
+- Known deviations (accepted, backlogged): raw-sqlite3 repository (SQLite only), own thread-pool executor, duplicate yt-dlp/OCR wrappers alongside `integrations/`
 
 ### Maintenance — Frame Extraction Engine: Strategy Pattern + Frame Sampling Mode (v0.8.0)
 - Replaced the old fixed-~2s-interval-only frame extraction (missed brief slides/questions/flash content) with a configurable engine: `Video → Frame Sampling → Strategy → shared quality filters → OCR → Classification → Question Extraction` — **zero changes downstream of extraction** (OCR/analysis/classification/questions all reuse the same `Frame` rows unchanged)

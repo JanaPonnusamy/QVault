@@ -10,6 +10,7 @@ from app.api.routers import (
     knowledge,
     ncert,
     notifications,
+    research,
     roles,
     users,
 )
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(documents.router)
     app.include_router(knowledge.router)
     app.include_router(content.router)
+    app.include_router(research.router)
 
     @app.get("/api/health", tags=["system"])
     def health():

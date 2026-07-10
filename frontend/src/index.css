@@ -1,3 +1,7 @@
+/* Tailwind utilities for the copied Knowledge Research components only
+   (preflight disabled in tailwind.config.js — no global resets). */
+@tailwind utilities;
+
 :root {
   --qv-sidebar-width: 256px;
   --qv-sidebar-collapsed: 64px;

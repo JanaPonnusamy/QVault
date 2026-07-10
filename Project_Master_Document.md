@@ -15,11 +15,11 @@ later make them searchable/classified/answerable. Built new; NexusYTSync
 
 ## Current Version
 
-**v0.8.0** (Frame Extraction Engine: Strategy Pattern + Frame Sampling Mode — reuses OCR/classification/question pipeline).
+**v0.9.0** (Knowledge Research Engine: URL/topic AI research — extraction + LLM analysis + consensus + reports; module copied from NexusYTSync and wired in per explicit copy-verbatim instruction).
 
 ## Current Sprint
 
-Maintenance — ✅ complete and verified (Frame Extraction Engine: configurable Frame Sampling → Strategy → shared quality filters, replacing the old fixed-interval-only extraction for both YouTube and Instagram; no changes downstream of extraction).
+Knowledge Research — ✅ complete and verified live (Mode A URL research end-to-end inside QVault: RBAC → download → Whisper → OpenRouter analysis → facts/entities/report; frontend page + history wired at `/research`).
 
 > **Reference note (Nexora):** `E:\Nexora\backend` was analyzed as the platform
 > reference. Its platform layer is **raw pyodbc + hand-written T-SQL, has no JWT,
@@ -125,6 +125,16 @@ E:\QVault\
 | `knowledge_nodes` | **Generic** hierarchical knowledge tree (parent_id self-FK, materialized path) | Knowledge Mapping |
 | `content_sections` | Assembled reader sections (cleaned heading hierarchy) | Content Assembly |
 | `content_blocks` | Assembled readable blocks (paragraph/figure/table/example/exercise) + provenance | Content Assembly |
+| `knowledge_sessions` | Research sessions (mode/status/stage/progress + report paths) | Knowledge Research |
+| `knowledge_documents` | Per-session extracted sources (file paths only, never text) | Knowledge Research |
+| `knowledge_facts` | Extracted facts (category/value/confidence/evidence/source) | Knowledge Research |
+| `knowledge_entities` | Extracted entities (name/type/category/confidence) | Knowledge Research |
+| `knowledge_consensus` | Cross-source consensus (practices/differences/conflicts/recommendation) | Knowledge Research |
+| `knowledge_ai_runs` | LLM execution metadata (provider/model/prompt version/tokens/cost/latency) | Knowledge Research |
+
+> Note: the six `knowledge_*` Research tables are created by the module's own
+> raw-sqlite3 repository (copied verbatim from NexusYTSync), not SQLAlchemy —
+> SQLite backend only until the backlog refactor.
 
 Schema is created via `Base.metadata.create_all` (works on SQLite **and** SQL
 Server). On SQLite, a lightweight `ALTER TABLE` column migration runs in
@@ -528,6 +538,22 @@ Knowledge Explorer.
 - **Verification Status:** ✅ 66 new backend tests (103 total) using real synthetic ffmpeg-generated local MP4s (ground truth authored, not mocked): reproduces the original bug exactly (10s video → 5 frames at old 2s interval) and its fix (0.25s → ~40 frames); scene-boundary detection; OCR Save/Skip matches the spec's worked example exactly; Hybrid regression-guarded against collapsing textless scene changes (camera cuts) just because OCR found no text; a full worker end-to-end test drives a real local MP4 through the actual `core.worker._run_job` against the real DB for all 4 strategies (a throwaway test-only `VideoProvider`, not wired to any router/UI); flash-frame detection reproduces the exact scenario from the request (10 FPS misses a 33ms/1-frame flash, "every decoded frame" catches it, for both OCR Text Change and Hybrid). ✅ Live-verified: a real 213s YouTube video processed end-to-end (download → Hybrid @ 10 FPS → 33 frames → ready) through the actual running app and Vite proxy; estimate endpoint verified live against real YouTube metadata (both fixed-fps and every-frame/probed-fps modes) and rejects invalid `sampling_fps` (422). Frontend builds clean.
 - **Future Improvements:** persist/replay the last-used strategy per source as a smarter default; per-strategy scene-threshold auto-tuning; surface the Frame Sampling estimate before Instagram cookie-gated URLs (currently probes require a reachable source).
 
+### 20. Knowledge Research Engine
+- **Purpose:** AI-powered research from a single YouTube URL (Mode A) or a topic searched across top-N YouTube videos (Mode B): per-source text extraction (Whisper transcript + subtitles + frame OCR) → LLM analysis (facts/entities/timeline/recommendations, structured JSON) → cross-source consensus → JSON + Markdown research report. Provider-abstracted LLM (OpenAI-compatible; OpenRouter live today) and source-search layers designed for future PDF/audio/image/website sources.
+- **Status:** ✅ Complete · **Sprint:** Knowledge Research (module copied verbatim from the NexusYTSync implementation per explicit instruction — *copy + wire, no redesign*; deviations from QVault house architecture are noted below)
+- **Backend Components:** `services/knowledge_research_service.py` (orchestrator), `services/knowledge_extraction_service.py` (dispatcher; video extractor), `services/llm_service.py` + `services/llm_providers/` (provider registry; `openai_provider` with retry, serves OpenRouter via base URL), `services/source_search_service.py` + `services/search_providers/` (YouTube `ytsearchN:`), `services/knowledge_frame_extraction_service.py` (module's own ffmpeg sampler — renamed on copy; distinct from QVault's `frame_extraction_service.py`), `services/ocr_service.py`, `services/subtitle_parser.py`, `services/whisper_wrapper.py` (faster-whisper base/int8), `services/yt_dlp_wrapper.py`, `services/knowledge_prompts.py` (versioned prompts), `services/knowledge_executor.py` (thread-pool executor abstraction), `repositories/knowledge_repository.py` (**raw sqlite3**, self-creating schema), `config/knowledge_config.py` (reads unprefixed `OPENAI_*`/`LLM_PROVIDER` keys from `config/.env`), `database/database_manager.py` (wiring shim → `database/qvault.db`), `api/routers/research.py` (`/api/research/*`, RBAC-guarded).
+- **Frontend Components:** `pages/KnowledgeResearchPage.tsx` (form + live progress pipeline + results tabs), `pages/KnowledgeResearchHistoryPage.tsx` (filterable history), `components/knowledge-research/` (7 components), `services/knowledgeResearchApi.ts` (rewired to QVault's authenticated `api/client`), `types/knowledgeResearch.ts`. Components are Tailwind-styled (copied): Tailwind v3 added **utilities-only** (`corePlugins.preflight=false`, content globs limited to this module) so Bootstrap and all existing pages are untouched.
+- **Database Tables:** `knowledge_sessions`, `knowledge_documents`, `knowledge_facts`, `knowledge_entities`, `knowledge_consensus`, `knowledge_ai_runs` — created by the module's own `CREATE TABLE IF NOT EXISTS` (raw sqlite3), **not** SQLAlchemy models. Large text is never stored in the DB — only file paths.
+- **Workers:** module's own `BackgroundTaskExecutor` (ThreadPoolExecutor) — *not* the acquisition worker (copy-verbatim constraint).
+- **APIs:** `GET /api/research/providers`, `POST/GET /api/research/sessions`, `GET /api/research/sessions/{id}[/results|/facts|/entities|/consensus]` — `research:view`/`research:execute` permissions (seeded).
+- **Storage:** `storage/knowledge/<session_id>/document_NNN/{transcript,subtitle,ocr,merged}.txt + {summary,facts,entities}.json`; session-level `report.json` + `report.md`. Media (video/audio/frames/vtt) deleted after extraction.
+- **Configuration:** `config/.env` (git-ignored): `LLM_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_BASE_URL` (OpenRouter live), `OPENAI_DEFAULT_MODEL`; template in `config/.env.example`.
+- **Dependencies:** `openai` (SDK, OpenAI-compatible endpoints), `faster-whisper` (added to requirements.txt); reuses installed yt-dlp/rapidocr/ffmpeg.
+- **Reusable Components:** LLM provider registry (`llm_service.py`) is the platform's first LLM layer — future modules should call `LLMService.generate/generate_json`, never a vendor SDK.
+- **Verification Status:** ✅ Live end-to-end inside QVault: RBAC login → `POST /api/research/sessions` (Mode A, real YouTube URL) → download → Whisper transcript → subtitles → LLM analysis via real OpenRouter → facts/entities/ai-run rows in `qvault.db` → `report.json`/`report.md` under `storage/knowledge/1/` → `COMPLETED` at 100%. Frontend builds clean (`tsc && vite build`); vite proxy → backend :8004 verified. (Mode B topic research verified end-to-end in the source implementation — 5 videos, consensus, 0.85 confidence.)
+- **Known deviations from house architecture (accepted per copy-verbatim instruction):** raw-sqlite3 repository (SQLite backend only — **not** SQL Server compatible), own thread-pool instead of acquisition worker, duplicate yt-dlp/OCR wrappers in `services/` alongside QVault's `integrations/`, dataclass models alongside SQLAlchemy. Refactor onto house infrastructure is a backlog item.
+- **Future Improvements:** port repository to SQLAlchemy (SQL Server support); route background work through the acquisition worker; merge duplicate yt-dlp/OCR wrappers into `integrations/`; PDF/audio/image/website extractors; Claude/Gemini/Ollama providers; PDF/DOCX report export.
+
 ---
 
 ## APIs (current)
@@ -577,6 +603,10 @@ Knowledge Explorer.
 | POST | `/api/knowledge/documents/{id}/remap` | `knowledge:execute` |
 | GET | `/api/content/stats`, `/api/content/documents/{id}` | `content:view` |
 | POST | `/api/content/documents/{id}/assemble` | `content:execute` |
+| GET | `/api/research/providers` | `research:view` |
+| POST | `/api/research/sessions` | `research:execute` |
+| GET | `/api/research/sessions[?status&topic&date_from&date_to&provider&source_type]` | `research:view` |
+| GET | `/api/research/sessions/{id}[/results\|/facts\|/entities\|/consensus]` | `research:view` |
 | GET | `/api/notifications` | authenticated |
 | POST | `/api/notifications/read-all`, `/api/notifications/{id}/read` | authenticated |
 | GET | `/api/health` | public |

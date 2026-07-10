@@ -7,6 +7,8 @@ import Documents from "./pages/Documents";
 import DocumentViewer from "./pages/DocumentViewer";
 import InstagramAcquisition from "./pages/InstagramAcquisition";
 import Knowledge from "./pages/Knowledge";
+import KnowledgeResearchHistoryPage from "./pages/KnowledgeResearchHistoryPage";
+import KnowledgeResearchPage from "./pages/KnowledgeResearchPage";
 import Login from "./pages/Login";
 import Ncert from "./pages/Ncert";
 import Review from "./pages/Review";
@@ -47,6 +49,9 @@ export default function App() {
         <Route path="/documents" element={<Documents />} />
         <Route path="/documents/:id" element={<DocumentViewer />} />
         <Route path="/knowledge" element={<Knowledge />} />
+        <Route path="/research" element={<KnowledgeResearchPage />} />
+        <Route path="/research/history" element={<KnowledgeResearchHistoryPage />} />
+        <Route path="/research/:sessionId" element={<KnowledgeResearchPage />} />
         <Route path="/users" element={<Users />} />
         <Route path="/roles" element={<Roles />} />
       </Route>

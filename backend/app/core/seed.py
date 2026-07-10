@@ -14,6 +14,7 @@ MODULE_ACTIONS: dict[str, list[str]] = {
     "documents": ["view", "execute", "delete"],
     "knowledge": ["view", "execute"],
     "content": ["view", "execute"],
+    "research": ["view", "execute"],
     "users": ["view", "create", "update", "delete"],
     "roles": ["view", "create", "update", "delete"],
     "settings": ["view", "update"],

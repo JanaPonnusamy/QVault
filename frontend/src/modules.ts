@@ -21,6 +21,7 @@ export const MODULES: ModuleDef[] = [
 
   { key: "documents", label: "Documents", icon: "bi-file-earmark-text", color: "#0d9488", path: "/documents", permission: "documents:view", group: "Knowledge", available: true },
   { key: "knowledge", label: "Knowledge Explorer", icon: "bi-diagram-3", color: "#7c3aed", path: "/knowledge", permission: "knowledge:view", group: "Knowledge", available: true },
+  { key: "research", label: "Knowledge Research", icon: "bi-search-heart", color: "#059669", path: "/research", permission: "research:view", group: "Knowledge", available: true },
 
   { key: "question_bank", label: "Question Bank", icon: "bi-collection", color: "#2563eb", group: "Question Management", available: false },
   { key: "validation", label: "Question Validation", icon: "bi-check2-square", color: "#16a34a", group: "Question Management", available: false },
