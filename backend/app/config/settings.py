@@ -55,6 +55,28 @@ class Settings(BaseSettings):
     ytdlp_cookies_file: str | None = None  # path to a Netscape-format cookies.txt
     ytdlp_cookies_from_browser: str | None = None  # e.g. "chrome", "firefox:Default"
 
+    # --- Video generation ---
+    assets_dir: Path = ROOT / "assets"
+    output_dir: Path = ROOT / "output"
+    video_fps: int = 30
+    video_concurrent_renders: int = 1
+    video_template: str = "glass_dark"
+
+    # --- TTS (provider-abstracted; see integrations/tts) ---
+    tts_provider: str = "edge"
+    tts_voice: str = "en-IN-NeerjaNeural"
+    tts_rate: str = "-4%"  # slightly slower than default for natural pacing
+    tts_pitch: str = "+0Hz"
+    tts_openai_api_key: str | None = None
+    tts_openai_model: str = "gpt-4o-mini-tts"
+    tts_elevenlabs_api_key: str | None = None
+    tts_elevenlabs_model: str = "eleven_multilingual_v2"
+    tts_azure_key: str | None = None
+    tts_azure_region: str | None = None
+    tts_google_api_key: str | None = None
+    tts_piper_exe: str | None = None
+    tts_piper_model: str | None = None
+
     ncert_page_url: str = "https://ncert.nic.in/textbook.php"
     ncert_files_base: str = "https://ncert.nic.in/textbook/pdf"
     ncert_retry_count: int = 3
@@ -76,6 +98,14 @@ class Settings(BaseSettings):
     @property
     def documents_dir(self) -> Path:
         return self.storage_dir / "documents"
+
+    @property
+    def templates_dir(self) -> Path:
+        return self.assets_dir / "templates"
+
+    @property
+    def fonts_dir(self) -> Path:
+        return self.assets_dir / "fonts"
 
     @property
     def cors_origin_list(self) -> list[str]:
@@ -117,3 +147,5 @@ settings.jobs_dir.mkdir(parents=True, exist_ok=True)
 settings.ncert_dir.mkdir(parents=True, exist_ok=True)
 settings.documents_dir.mkdir(parents=True, exist_ok=True)
 (ROOT / "database").mkdir(parents=True, exist_ok=True)
+for _sub in ("videos", "shorts", "reels", ".work"):
+    (settings.output_dir / _sub).mkdir(parents=True, exist_ok=True)

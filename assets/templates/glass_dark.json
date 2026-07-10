@@ -1,0 +1,43 @@
+{
+  "key": "glass_dark",
+  "name": "Glass Dark",
+  "description": "Premium dark glassmorphism with violet aurora gradient",
+  "fonts": {
+    "regular": "Poppins-Regular.ttf",
+    "medium": "Poppins-Medium.ttf",
+    "semibold": "Poppins-SemiBold.ttf",
+    "bold": "Poppins-Bold.ttf"
+  },
+  "background": {
+    "base": [10, 12, 26],
+    "blobs": [
+      { "color": [96, 64, 224], "radius": 0.62, "cx": 0.18, "cy": 0.22, "drift": 0.1, "speed": 0.045 },
+      { "color": [24, 120, 200], "radius": 0.55, "cx": 0.85, "cy": 0.35, "drift": 0.12, "speed": 0.035 },
+      { "color": [190, 48, 150], "radius": 0.5, "cx": 0.5, "cy": 0.95, "drift": 0.09, "speed": 0.055 }
+    ],
+    "vignette": 0.35,
+    "particles": { "count": 26, "color": [255, 255, 255], "min_r": 2, "max_r": 5, "alpha": 46, "speed": 14 }
+  },
+  "glass": {
+    "fill": [255, 255, 255, 22],
+    "fill_strong": [255, 255, 255, 34],
+    "border": [255, 255, 255, 60],
+    "radius": 28,
+    "blur": 16,
+    "shadow_alpha": 110
+  },
+  "colors": {
+    "text": [255, 255, 255],
+    "muted": [190, 196, 220],
+    "accent": [138, 116, 255],
+    "accent2": [72, 195, 251],
+    "correct": [46, 213, 115],
+    "wrong_dim": 105,
+    "option_letter_bg": [138, 116, 255, 210],
+    "progress_track": [255, 255, 255, 40],
+    "subtitle": [235, 238, 250],
+    "subtitle_highlight": [255, 209, 84]
+  },
+  "music": null,
+  "music_volume": 0.07
+}

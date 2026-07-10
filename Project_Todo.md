@@ -28,6 +28,19 @@ sprint finishes. Keep this file accurate after every sprint (see CLAUDE.md rule 
 
 ## COMPLETED
 
+### Phase X — Automated Educational Video Generation Engine
+- **Deterministic rendering engine** (no AI video generation): Question JSON (`storage/**/*.json`, existing schema reused unchanged) → finished quiz videos. YouTube landscape 1920×1080 (20–25 Q, ~10–12 min) and portrait 1080×1920 Shorts/Reels (1 Q, ~20–35 s) from **one shared timeline** — only the `Layout` differs (no duplicated layouts)
+- Per-question timeline exactly per spec: question card in → narration → options pop in as spoken (2 per row, glass cards, letter chips) → thinking pause → animated 3-2-1 countdown (ring + ticks in the soundtrack) → correct option green glow + pulse + check icon, others dimmed → ✅ Correct Answer card slides in → 💡 Explanation card fades in → next question; animated gradient-blob background + drifting particles (never static), progress bar with glow head, intro/outro title cards
+- **Provider-abstracted TTS** (`integrations/tts/`, `TTSProvider` protocol + registry): edge (default — free, `en-IN-NeerjaNeural` Indian-English female, native word-boundary events), openai, elevenlabs, azure, google, kokoro, piper; per-segment synthesis with on-disk cache; narration is a generated speaking script (rotating leads, spoken options, reveal phrasing, sentence-trimmed explanations) — never raw JSON
+- Visual event times derived from **measured** narration durations; word-highlight subtitle bar + SRT export; numpy audio mixdown (narration at exact offsets + synthesized countdown ticks + optional `assets/music` bed)
+- **Streaming render**: frames piped straight into ffmpeg stdin (rawvideo → libx264 + aac) — never a full video in memory; ~90 ms/frame @1080p after profiling; renders serialized via `video_concurrent_renders` semaphore
+- 6 JSON theme templates (`assets/templates/`): Glass Dark (default), Glass Blue, Classic, Light, Minimal, Kids — future templates need **no code change**; Poppins (OFL) bundled in `assets/fonts/`
+- Reuses house infrastructure: `acquisition_jobs` + acquisition worker (`job_type="video_render"`), notifications, RBAC (`videos:view/execute/delete/export` seeded), SQLAlchemy `videos` registry table
+- APIs: stats/sources/templates/tts-providers/generate/batch(1–100)/preview/list/jobs/download/subtitles/thumbnail/delete under `/api/videos`
+- Frontend **Video Generation** module (new Studio group, `/videos`): stats dashboard, JSON source + topic selection, output kind, orientation, theme + voice selection, single + batch generation, timeline-preview modal, live generation queue, completed table (thumbnail, download MP4/SRT, delete), filters + pagination
+- Verified: backend imports (101 routes), frontend builds, live API E2E (single landscape + batch shorts), rendered frames visually checked against the spec
+- **Not committed** — awaiting manual verification before the automation workflow (documentation/release/dashboard/GitHub sync) runs
+
 ### Knowledge Research Engine (v0.9.0)
 - New `research` module: AI research from a single YouTube URL (Mode A) or topic → top-N videos (Mode B) — extraction (Whisper transcript + subtitles + frame OCR) → LLM analysis (structured JSON: facts/entities/timeline/recommendations/warnings) → cross-source consensus → JSON + Markdown report
 - **Copied verbatim from the NexusYTSync implementation and wired into QVault per explicit instruction (copy + wire, no redesign)** — wiring-only changes: router prefix `/api/research` (existing knowledge module owns `/api/knowledge`), `require_permission` guards + `research` RBAC module seeded, `database_manager.py` shim → `qvault.db`, frontend api client → QVault's authenticated axios, module registered in `modules.ts` + routes in `App.tsx`, Tailwind v3 utilities-only (preflight off, module-scoped content globs) so Bootstrap pages are untouched

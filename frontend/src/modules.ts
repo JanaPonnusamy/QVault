@@ -19,6 +19,8 @@ export const MODULES: ModuleDef[] = [
   { key: "image_import", label: "Images", icon: "bi-file-earmark-image", color: "#7c3aed", group: "Sources", available: false },
   { key: "previous_papers", label: "Previous Year Papers", icon: "bi-files", color: "#0d9488", group: "Question Management", available: false },
 
+  { key: "videos", label: "Video Generation", icon: "bi-camera-video", color: "#e11d48", path: "/videos", permission: "videos:view", group: "Studio", available: true },
+
   { key: "documents", label: "Documents", icon: "bi-file-earmark-text", color: "#0d9488", path: "/documents", permission: "documents:view", group: "Knowledge", available: true },
   { key: "knowledge", label: "Knowledge Explorer", icon: "bi-diagram-3", color: "#7c3aed", path: "/knowledge", permission: "knowledge:view", group: "Knowledge", available: true },
   { key: "research", label: "Knowledge Research", icon: "bi-search-heart", color: "#059669", path: "/research", permission: "research:view", group: "Knowledge", available: true },

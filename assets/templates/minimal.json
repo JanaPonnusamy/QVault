@@ -1,0 +1,42 @@
+{
+  "key": "minimal",
+  "name": "Minimal",
+  "description": "Near-black minimal theme, single accent, no particles",
+  "fonts": {
+    "regular": "Poppins-Regular.ttf",
+    "medium": "Poppins-Medium.ttf",
+    "semibold": "Poppins-SemiBold.ttf",
+    "bold": "Poppins-Bold.ttf"
+  },
+  "background": {
+    "base": [12, 12, 14],
+    "blobs": [
+      { "color": [40, 40, 48], "radius": 0.75, "cx": 0.5, "cy": 0.3, "drift": 0.05, "speed": 0.025 },
+      { "color": [30, 34, 44], "radius": 0.6, "cx": 0.2, "cy": 0.9, "drift": 0.05, "speed": 0.03 }
+    ],
+    "vignette": 0.3,
+    "particles": { "count": 0, "color": [255, 255, 255], "min_r": 2, "max_r": 3, "alpha": 0, "speed": 8 }
+  },
+  "glass": {
+    "fill": [255, 255, 255, 16],
+    "fill_strong": [255, 255, 255, 26],
+    "border": [255, 255, 255, 44],
+    "radius": 16,
+    "blur": 10,
+    "shadow_alpha": 90
+  },
+  "colors": {
+    "text": [245, 245, 247],
+    "muted": [160, 160, 168],
+    "accent": [255, 255, 255],
+    "accent2": [140, 140, 150],
+    "correct": [52, 199, 89],
+    "wrong_dim": 95,
+    "option_letter_bg": [255, 255, 255, 40],
+    "progress_track": [255, 255, 255, 30],
+    "subtitle": [235, 235, 240],
+    "subtitle_highlight": [255, 214, 10]
+  },
+  "music": null,
+  "music_volume": 0.06
+}

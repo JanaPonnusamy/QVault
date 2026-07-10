@@ -1,0 +1,43 @@
+{
+  "key": "light",
+  "name": "Light",
+  "description": "Soft light theme with pastel gradients",
+  "fonts": {
+    "regular": "Poppins-Regular.ttf",
+    "medium": "Poppins-Medium.ttf",
+    "semibold": "Poppins-SemiBold.ttf",
+    "bold": "Poppins-Bold.ttf"
+  },
+  "background": {
+    "base": [235, 238, 248],
+    "blobs": [
+      { "color": [255, 210, 230], "radius": 0.6, "cx": 0.2, "cy": 0.25, "drift": 0.1, "speed": 0.04 },
+      { "color": [200, 225, 255], "radius": 0.6, "cx": 0.85, "cy": 0.4, "drift": 0.1, "speed": 0.035 },
+      { "color": [215, 245, 225], "radius": 0.5, "cx": 0.5, "cy": 0.95, "drift": 0.08, "speed": 0.05 }
+    ],
+    "vignette": 0.12,
+    "particles": { "count": 20, "color": [120, 130, 190], "min_r": 2, "max_r": 4, "alpha": 34, "speed": 10 }
+  },
+  "glass": {
+    "fill": [255, 255, 255, 150],
+    "fill_strong": [255, 255, 255, 200],
+    "border": [255, 255, 255, 230],
+    "radius": 28,
+    "blur": 14,
+    "shadow_alpha": 60
+  },
+  "colors": {
+    "text": [30, 34, 60],
+    "muted": [100, 108, 140],
+    "accent": [98, 88, 245],
+    "accent2": [20, 160, 210],
+    "correct": [22, 163, 74],
+    "wrong_dim": 120,
+    "option_letter_bg": [98, 88, 245, 225],
+    "progress_track": [30, 34, 60, 34],
+    "subtitle": [40, 44, 72],
+    "subtitle_highlight": [200, 120, 0]
+  },
+  "music": null,
+  "music_volume": 0.07
+}

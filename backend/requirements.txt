@@ -16,3 +16,6 @@ pytest
 httpx
 openai
 faster-whisper
+edge-tts
+Pillow
+numpy

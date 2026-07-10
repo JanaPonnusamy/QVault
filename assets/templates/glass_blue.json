@@ -1,0 +1,43 @@
+{
+  "key": "glass_blue",
+  "name": "Glass Blue",
+  "description": "Deep ocean-blue glassmorphism with cyan glow",
+  "fonts": {
+    "regular": "Poppins-Regular.ttf",
+    "medium": "Poppins-Medium.ttf",
+    "semibold": "Poppins-SemiBold.ttf",
+    "bold": "Poppins-Bold.ttf"
+  },
+  "background": {
+    "base": [4, 16, 34],
+    "blobs": [
+      { "color": [16, 96, 220], "radius": 0.65, "cx": 0.25, "cy": 0.2, "drift": 0.11, "speed": 0.04 },
+      { "color": [10, 190, 210], "radius": 0.5, "cx": 0.82, "cy": 0.55, "drift": 0.1, "speed": 0.05 },
+      { "color": [40, 60, 180], "radius": 0.55, "cx": 0.45, "cy": 0.95, "drift": 0.08, "speed": 0.035 }
+    ],
+    "vignette": 0.32,
+    "particles": { "count": 30, "color": [180, 230, 255], "min_r": 2, "max_r": 4, "alpha": 52, "speed": 12 }
+  },
+  "glass": {
+    "fill": [210, 235, 255, 22],
+    "fill_strong": [210, 235, 255, 36],
+    "border": [190, 230, 255, 64],
+    "radius": 28,
+    "blur": 16,
+    "shadow_alpha": 110
+  },
+  "colors": {
+    "text": [255, 255, 255],
+    "muted": [178, 200, 226],
+    "accent": [56, 172, 255],
+    "accent2": [34, 224, 214],
+    "correct": [46, 213, 115],
+    "wrong_dim": 105,
+    "option_letter_bg": [56, 172, 255, 215],
+    "progress_track": [255, 255, 255, 38],
+    "subtitle": [230, 242, 255],
+    "subtitle_highlight": [255, 209, 84]
+  },
+  "music": null,
+  "music_volume": 0.07
+}

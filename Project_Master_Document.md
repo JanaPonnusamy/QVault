@@ -19,7 +19,9 @@ later make them searchable/classified/answerable. Built new; NexusYTSync
 
 ## Current Sprint
 
-Knowledge Research — ✅ complete and verified live (Mode A URL research end-to-end inside QVault: RBAC → download → Whisper → OpenRouter analysis → facts/entities/report; frontend page + history wired at `/research`).
+Phase X — Video Generation Engine: ✅ implemented and live-verified (Question JSON → glassmorphism quiz videos, landscape + Shorts/Reels, provider-abstracted TTS, streamed ffmpeg rendering, `/videos` module). ⏳ **Awaiting manual sign-off before commit** (per instruction: no automation workflow until verified).
+
+Previous: Knowledge Research — ✅ complete and verified live (Mode A URL research end-to-end inside QVault: RBAC → download → Whisper → OpenRouter analysis → facts/entities/report; frontend page + history wired at `/research`).
 
 > **Reference note (Nexora):** `E:\Nexora\backend` was analyzed as the platform
 > reference. Its platform layer is **raw pyodbc + hand-written T-SQL, has no JWT,
@@ -554,6 +556,21 @@ Knowledge Explorer.
 - **Known deviations from house architecture (accepted per copy-verbatim instruction):** raw-sqlite3 repository (SQLite backend only — **not** SQL Server compatible), own thread-pool instead of acquisition worker, duplicate yt-dlp/OCR wrappers in `services/` alongside QVault's `integrations/`, dataclass models alongside SQLAlchemy. Refactor onto house infrastructure is a backlog item.
 - **Future Improvements:** port repository to SQLAlchemy (SQL Server support); route background work through the acquisition worker; merge duplicate yt-dlp/OCR wrappers into `integrations/`; PDF/audio/image/website extractors; Claude/Gemini/Ollama providers; PDF/DOCX report export.
 
+### 21. Video Generation Engine (Phase X)
+- **Purpose:** Deterministic rendering engine (not an AI video generator) that turns stored Question JSON into finished educational quiz videos: YouTube landscape 1920×1080 (20–25 questions, ~10–12 min) and portrait 1080×1920 Shorts/Reels (1 question, ~20–35 s) — glassmorphism theme, animated gradient background + particles, natural TTS narration, word-highlight subtitles, per-question timeline (question → narration → options → thinking pause → 3-2-1 countdown → correct-answer glow → answer card → explanation card).
+- **Status:** ✅ Implemented & live-verified · **Sprint:** Phase X (⏳ awaiting manual sign-off before commit)
+- **Backend Components:** `integrations/tts/` (provider-abstracted TTS: `TTSProvider` protocol + registry; **edge** [default, free, `en-IN-NeerjaNeural` Indian-English female, native word-boundary timings], **openai**, **elevenlabs**, **azure**, **google**, **kokoro**, **piper** — key/binary-gated via settings, no provider lock-in), `services/video_source_service.py` (scans `storage/**/*.json` for the existing Question schema `{id,question,options[],answer,solution,topic}`; normalizes, validates answer∈options, ≤4 options; topic catalog), `services/video_script_service.py` (natural speaking script — never reads JSON aloud: rotating question leads, spoken options, thinking cue, reveal, sentence-trimmed explanation; short-form hooks), `services/video_timeline_service.py` (synthesizes every segment with an on-disk TTS cache keyed provider/voice/text; derives all visual event times from **measured** audio durations; caption chunking for word highlighting; `estimate()` for the no-TTS preview API), `services/video_audio_service.py` (numpy mixdown: narration clips at exact offsets + synthesized countdown ticks + optional `assets/music` bed at template volume → WAV), `services/video_render_service.py` (streaming compositor → ffmpeg stdin, rawvideo→libx264+aac; `Layout.landscape()/portrait()` share one timeline; animated low-res gradient blobs + drifting particles; glass cards = low-res-blurred backdrop crop + translucent fill + border + shadow; eased slide/fade/pop/pulse; progress bar; countdown ring; correct-option green glow + check + dim others; word-highlight caption bar; JSON templates in `assets/templates/` — new templates need no code change), `services/video_subtitle_service.py` (SRT export), `services/video_generation_service.py` (orchestrator + `queue`/`queue_batch`/`preview`/`run_render`/`delete`; render concurrency semaphore `video_concurrent_renders`), `models/video.py` (`videos` registry), `repositories/video_repository.py`, `api/routers/videos.py`. Reuses **acquisition worker** (`job_type="video_render"`) + `acquisition_jobs` + notifications.
+- **Frontend Components:** `pages/VideoGeneration.tsx` (stats cards, source/topic/category selection, output kind YouTube/Short/Reel, orientation, theme, TTS provider/voice selectors, single + batch (1–100) generation, timeline-preview modal, generation queue via `JobProgress`, completed-videos table with thumbnail/download MP4/download SRT/delete, filters + pagination). Registered in `modules.ts` (new **Studio** group) + `App.tsx` (`/videos`).
+- **Database Tables:** `videos` (registry: kind/orientation/resolution/fps/duration/category/source_file/topic/question_ids/template/tts provider+voice/status/paths/sizes). Jobs reuse `acquisition_jobs`.
+- **Workers:** Acquisition worker (`video_render` branch); CPU-bound renders serialized by semaphore.
+- **APIs:** `/api/videos/`: `GET stats`, `GET sources`, `GET templates`, `GET tts-providers`, `POST generate`, `POST batch`, `POST preview`, `GET ""` (list+filters), `GET jobs`, `GET {id}`, `GET {id}/download|subtitles|thumbnail` (token-auth), `DELETE {id}` — `videos:view/execute/delete/export` RBAC seeded.
+- **Storage:** `assets/` (fonts [Poppins OFL], templates ×6 [glass_dark default, glass_blue, classic, light, minimal, kids], music/logos/backgrounds/icons/effects placeholders); outputs `output/videos|shorts|reels/qv_<id>_<slug>.{mp4,srt,jpg}`; `output/.work/tts_cache` (per-segment audio+word-timing cache).
+- **Configuration:** `QVAULT_VIDEO_FPS` (30), `QVAULT_VIDEO_TEMPLATE`, `QVAULT_VIDEO_CONCURRENT_RENDERS` (1), `QVAULT_TTS_PROVIDER` (edge), `QVAULT_TTS_VOICE` (en-IN-NeerjaNeural), `QVAULT_TTS_RATE/PITCH`, provider keys `QVAULT_TTS_OPENAI_API_KEY`/`TTS_ELEVENLABS_API_KEY`/`TTS_AZURE_KEY+REGION`/`TTS_GOOGLE_API_KEY`/`TTS_PIPER_EXE+MODEL`.
+- **Dependencies:** Pillow, numpy, edge-tts (added to requirements), existing ffmpeg/httpx/openai.
+- **Reusable Components:** the TTS provider registry is the platform's speech layer (any future module calls `get_tts_provider()`); JSON theme templates; `Layout` orientation abstraction.
+- **Verification Status:** ✅ Backend imports (101 routes); frontend `tsc && vite build` clean; live E2E on a real server: login → sources (5,535 usable of 6,964 questions detected) → preview → single landscape generate + batch(2) shorts → real edge-TTS narration → mixed audio with countdown ticks → streamed ffmpeg render → MP4 + SRT + thumbnail on disk + DB rows; portrait frames visually verified (glass cards, 2-per-row options, countdown ring, green reveal + check + dim, answer/explanation cards, word-highlight subtitles). Render ~90 ms/frame @1080p after profiling (region-crop glass blur, alpha-pulse instead of per-frame rescale).
+- **Future Improvements:** background-music asset pack; Whisper forced alignment for word timings on providers without boundaries; per-region rendering acceleration (numpy compositor); job cancellation; upload/publish integrations (YouTube/Instagram APIs); per-template intro/outro cards.
+
 ---
 
 ## APIs (current)
@@ -607,6 +624,12 @@ Knowledge Explorer.
 | POST | `/api/research/sessions` | `research:execute` |
 | GET | `/api/research/sessions[?status&topic&date_from&date_to&provider&source_type]` | `research:view` |
 | GET | `/api/research/sessions/{id}[/results\|/facts\|/entities\|/consensus]` | `research:view` |
+| GET | `/api/videos`, `/api/videos/stats\|sources\|templates\|tts-providers\|jobs`, `/api/videos/{id}` | `videos:view` |
+| POST | `/api/videos/generate\|batch` | `videos:execute` |
+| POST | `/api/videos/preview` | `videos:view` |
+| GET | `/api/videos/{id}/download\|subtitles` | token (`videos:export`) |
+| GET | `/api/videos/{id}/thumbnail` | token (`videos:view`) |
+| DELETE | `/api/videos/{id}` | `videos:delete` |
 | GET | `/api/notifications` | authenticated |
 | POST | `/api/notifications/read-all`, `/api/notifications/{id}/read` | authenticated |
 | GET | `/api/health` | public |
@@ -621,6 +644,7 @@ Knowledge Explorer.
 | NCERT download | `core/acquisition_worker.py` | queued → downloading → completed / failed |
 | NCERT refresh (version check) | `core/acquisition_worker.py` | queued → scanning → completed / failed |
 | Document structure extraction | `core/acquisition_worker.py` | queued → processing → completed / failed |
+| Video render | `core/acquisition_worker.py` | queued → Loading questions → Synthesizing narration → Mixing audio → Rendering frames → completed / failed |
 
 ## Configuration
 
@@ -631,8 +655,12 @@ seed admin; `ffmpeg_path`/`ffprobe_path`; `frame_max_count`/`frame_min_interval`
 `ytdlp_cookies_file`/`ytdlp_cookies_from_browser` (yt-dlp cookie auth — Instagram/YouTube
 "empty media response"/login-wall workaround; `integrations/ytdlp.py`, optional, unset by
 default); `ncert_page_url`/`ncert_files_base`/
-`ncert_retry_count`/`ncert_concurrent_downloads`/`ncert_timeout`. Permission modules are
-seeded in `core/seed.py`: `dashboard`, `youtube_extractor`, `instagram`, `ncert`, `documents`, `knowledge`, `content`, `users`, `roles`, `settings`.
+`ncert_retry_count`/`ncert_concurrent_downloads`/`ncert_timeout`;
+video generation: `video_fps`/`video_template`/`video_concurrent_renders`,
+`tts_provider`/`tts_voice`/`tts_rate`/`tts_pitch` + per-provider keys
+(`tts_openai_api_key`, `tts_elevenlabs_api_key`, `tts_azure_key`+`tts_azure_region`,
+`tts_google_api_key`, `tts_piper_exe`+`tts_piper_model`). Permission modules are
+seeded in `core/seed.py`: `dashboard`, `youtube_extractor`, `instagram`, `ncert`, `documents`, `knowledge`, `content`, `research`, `videos`, `users`, `roles`, `settings`.
 New DB keys: `db_backend`, `mssql_*`, `database_url` override (see `config/.env.example`).
 
 ## Current Status

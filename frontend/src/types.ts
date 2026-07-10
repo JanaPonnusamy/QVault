@@ -317,3 +317,89 @@ export interface Question {
   frame_start: number | null;
   frame_end: number | null;
 }
+
+export interface VideoStats {
+  total: number;
+  completed: number;
+  failed: number;
+  in_progress: number;
+  videos: number;
+  shorts: number;
+  reels: number;
+  total_duration: number;
+  total_size: number;
+}
+
+export interface VideoItem {
+  id: number;
+  title: string;
+  kind: string;
+  orientation: string;
+  width: number;
+  height: number;
+  fps: number;
+  duration: number;
+  category: string;
+  source_file: string;
+  topic: string;
+  question_count: number;
+  template: string;
+  tts_provider: string;
+  tts_voice: string;
+  status: string;
+  error: string;
+  file_size: number;
+  has_srt: boolean;
+  has_thumbnail: boolean;
+  created_at: string | null;
+}
+
+export interface VideoSource {
+  path: string;
+  question_count: number;
+  usable_count: number;
+  topics: Record<string, number>;
+}
+
+export interface VideoTemplate {
+  key: string;
+  name: string;
+  description: string;
+}
+
+export interface TTSVoice {
+  id: string;
+  label: string;
+  language: string;
+  gender: string;
+}
+
+export interface TTSProviderInfo {
+  name: string;
+  label: string;
+  available: boolean;
+  voices: TTSVoice[];
+}
+
+export interface TimelineScenePreview {
+  index: number;
+  question: string;
+  answer: string;
+  question_in: number;
+  options_in: number[];
+  think_in: number;
+  countdown_in: number;
+  reveal_at: number;
+  answer_in: number;
+  explanation_in: number | null;
+  end: number;
+}
+
+export interface TimelinePreview {
+  kind: string;
+  category: string;
+  duration: number;
+  intro_end: number;
+  outro_in: number;
+  scenes: TimelineScenePreview[];
+}

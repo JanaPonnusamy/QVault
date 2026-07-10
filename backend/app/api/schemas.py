@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 VALID_SAMPLING_FPS = {None, 30.0, 15.0, 10.0, 5.0, 2.0, 1.0}
 
@@ -539,3 +539,106 @@ class AssembleSummary(BaseModel):
     sections: int = 0
     blocks: int = 0
     dropped_noise: int = 0
+
+
+# ---------------------------------------------------------------- Video Generation
+
+
+class VideoSourceOut(BaseModel):
+    path: str
+    question_count: int
+    usable_count: int
+    topics: dict[str, int]
+
+
+class VideoTemplateOut(BaseModel):
+    key: str
+    name: str
+    description: str = ""
+
+
+class TTSVoiceOut(BaseModel):
+    id: str
+    label: str
+    language: str = ""
+    gender: str = ""
+
+
+class TTSProviderOut(BaseModel):
+    name: str
+    label: str
+    available: bool
+    voices: list[TTSVoiceOut]
+
+
+class VideoGenerateRequest(BaseModel):
+    source_file: str
+    kind: str = "video"  # video | short | reel
+    orientation: str | None = None  # landscape | portrait (defaults by kind)
+    category: str = "General Knowledge"
+    topic: str | None = None
+    question_count: int | None = Field(None, ge=1, le=50)
+    offset: int = Field(0, ge=0)
+    shuffle_seed: int | None = None
+    template: str | None = None
+    tts_provider: str | None = None
+    tts_voice: str | None = None
+
+
+class VideoBatchRequest(VideoGenerateRequest):
+    batch_count: int = Field(10, ge=1, le=100)
+
+
+class VideoPreviewRequest(BaseModel):
+    source_file: str
+    kind: str = "video"
+    category: str = "General Knowledge"
+    topic: str | None = None
+    question_count: int | None = Field(None, ge=1, le=50)
+    offset: int = Field(0, ge=0)
+    shuffle_seed: int | None = None
+
+
+class VideoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    kind: str
+    orientation: str
+    width: int
+    height: int
+    fps: int
+    duration: float
+    category: str
+    source_file: str
+    topic: str
+    question_count: int
+    template: str
+    tts_provider: str
+    tts_voice: str
+    status: str
+    error: str
+    file_size: int
+    has_srt: bool = False
+    has_thumbnail: bool = False
+    created_at: datetime | None = None
+
+
+class VideoList(BaseModel):
+    items: list[VideoOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class VideoStats(BaseModel):
+    total: int = 0
+    completed: int = 0
+    failed: int = 0
+    in_progress: int = 0
+    videos: int = 0
+    shorts: int = 0
+    reels: int = 0
+    total_duration: float = 0
+    total_size: int = 0

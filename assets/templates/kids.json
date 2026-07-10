@@ -1,0 +1,43 @@
+{
+  "key": "kids",
+  "name": "Kids",
+  "description": "Bright playful colors with big soft shapes",
+  "fonts": {
+    "regular": "Poppins-Regular.ttf",
+    "medium": "Poppins-Medium.ttf",
+    "semibold": "Poppins-SemiBold.ttf",
+    "bold": "Poppins-Bold.ttf"
+  },
+  "background": {
+    "base": [30, 20, 60],
+    "blobs": [
+      { "color": [255, 90, 120], "radius": 0.55, "cx": 0.15, "cy": 0.2, "drift": 0.14, "speed": 0.06 },
+      { "color": [255, 180, 40], "radius": 0.5, "cx": 0.85, "cy": 0.3, "drift": 0.13, "speed": 0.055 },
+      { "color": [60, 200, 255], "radius": 0.55, "cx": 0.5, "cy": 0.95, "drift": 0.12, "speed": 0.05 }
+    ],
+    "vignette": 0.22,
+    "particles": { "count": 36, "color": [255, 240, 200], "min_r": 3, "max_r": 7, "alpha": 60, "speed": 20 }
+  },
+  "glass": {
+    "fill": [255, 255, 255, 34],
+    "fill_strong": [255, 255, 255, 52],
+    "border": [255, 255, 255, 90],
+    "radius": 36,
+    "blur": 16,
+    "shadow_alpha": 100
+  },
+  "colors": {
+    "text": [255, 255, 255],
+    "muted": [235, 225, 255],
+    "accent": [255, 180, 40],
+    "accent2": [80, 220, 255],
+    "correct": [80, 230, 120],
+    "wrong_dim": 115,
+    "option_letter_bg": [255, 120, 90, 230],
+    "progress_track": [255, 255, 255, 50],
+    "subtitle": [255, 250, 235],
+    "subtitle_highlight": [255, 220, 60]
+  },
+  "music": null,
+  "music_volume": 0.09
+}

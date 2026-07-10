@@ -35,6 +35,10 @@ def _run_job(job_id: int) -> None:
             from app.services.knowledge_service import KnowledgeService
 
             KnowledgeService(db).run_extraction(job)
+        elif job.job_type == "video_render":
+            from app.services.video_generation_service import VideoGenerationService
+
+            VideoGenerationService(db).run_render(job)
         else:
             job.status = "failed"
             job.error = f"Unknown job type: {job.job_type}"

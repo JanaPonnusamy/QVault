@@ -4,6 +4,7 @@ from app.models.acquisition import AcquisitionJob, NcertBook, Notification
 from app.models.document import Document, DocumentBookmark, DocumentElement
 from app.models.knowledge import KnowledgeNode
 from app.models.content import ContentBlock, ContentSection
+from app.models.video import Video
 
 __all__ = [
     "User",
@@ -22,4 +23,5 @@ __all__ = [
     "KnowledgeNode",
     "ContentSection",
     "ContentBlock",
+    "Video",
 ]

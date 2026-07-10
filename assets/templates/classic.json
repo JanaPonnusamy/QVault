@@ -1,0 +1,43 @@
+{
+  "key": "classic",
+  "name": "Classic",
+  "description": "Traditional quiz look — deep navy with gold accents",
+  "fonts": {
+    "regular": "Poppins-Regular.ttf",
+    "medium": "Poppins-Medium.ttf",
+    "semibold": "Poppins-SemiBold.ttf",
+    "bold": "Poppins-Bold.ttf"
+  },
+  "background": {
+    "base": [16, 20, 40],
+    "blobs": [
+      { "color": [40, 52, 110], "radius": 0.7, "cx": 0.5, "cy": 0.15, "drift": 0.06, "speed": 0.03 },
+      { "color": [90, 70, 20], "radius": 0.45, "cx": 0.15, "cy": 0.85, "drift": 0.07, "speed": 0.04 },
+      { "color": [60, 40, 100], "radius": 0.5, "cx": 0.9, "cy": 0.8, "drift": 0.06, "speed": 0.035 }
+    ],
+    "vignette": 0.4,
+    "particles": { "count": 18, "color": [255, 220, 140], "min_r": 2, "max_r": 4, "alpha": 42, "speed": 10 }
+  },
+  "glass": {
+    "fill": [255, 255, 255, 18],
+    "fill_strong": [255, 255, 255, 30],
+    "border": [230, 190, 100, 70],
+    "radius": 18,
+    "blur": 12,
+    "shadow_alpha": 120
+  },
+  "colors": {
+    "text": [255, 252, 240],
+    "muted": [196, 196, 200],
+    "accent": [235, 190, 90],
+    "accent2": [120, 150, 255],
+    "correct": [58, 210, 120],
+    "wrong_dim": 100,
+    "option_letter_bg": [235, 190, 90, 220],
+    "progress_track": [255, 255, 255, 36],
+    "subtitle": [245, 240, 226],
+    "subtitle_highlight": [235, 190, 90]
+  },
+  "music": null,
+  "music_volume": 0.07
+}

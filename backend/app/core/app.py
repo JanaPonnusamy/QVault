@@ -13,6 +13,7 @@ from app.api.routers import (
     research,
     roles,
     users,
+    videos,
 )
 from app.config.settings import settings
 from app.core.seed import seed
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(knowledge.router)
     app.include_router(content.router)
     app.include_router(research.router)
+    app.include_router(videos.router)
 
     @app.get("/api/health", tags=["system"])
     def health():
