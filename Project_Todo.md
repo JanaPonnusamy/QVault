@@ -39,7 +39,7 @@ sprint finishes. Keep this file accurate after every sprint (see CLAUDE.md rule 
 - APIs: stats/sources/templates/tts-providers/generate/batch(1–100)/preview/list/jobs/download/subtitles/thumbnail/delete under `/api/videos`
 - Frontend **Video Generation** module (new Studio group, `/videos`): stats dashboard, JSON source + topic selection, output kind, orientation, theme + voice selection, single + batch generation, timeline-preview modal, live generation queue, completed table (thumbnail, download MP4/SRT, delete), filters + pagination
 - Verified: backend imports (101 routes), frontend builds, live API E2E (single landscape + batch shorts), rendered frames visually checked against the spec
-- **Not committed** — awaiting manual verification before the automation workflow (documentation/release/dashboard/GitHub sync) runs
+- Committed as `41f14bd` on the new **develop** branch (pushed to origin) — all future work happens on `develop`
 
 ### Knowledge Research Engine (v0.9.0)
 - New `research` module: AI research from a single YouTube URL (Mode A) or topic → top-N videos (Mode B) — extraction (Whisper transcript + subtitles + frame OCR) → LLM analysis (structured JSON: facts/entities/timeline/recommendations/warnings) → cross-source consensus → JSON + Markdown report
