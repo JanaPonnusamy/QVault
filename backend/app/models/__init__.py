@@ -5,6 +5,8 @@ from app.models.document import Document, DocumentBookmark, DocumentElement
 from app.models.knowledge import KnowledgeNode
 from app.models.content import ContentBlock, ContentSection
 from app.models.video import Video
+from app.models.catalog import Chapter, Exam, Subject, Topic, Unit
+from app.models.system import SyllabusImportLog
 
 __all__ = [
     "User",
@@ -24,4 +26,10 @@ __all__ = [
     "ContentSection",
     "ContentBlock",
     "Video",
+    "Exam",
+    "Subject",
+    "Unit",
+    "Chapter",
+    "Topic",
+    "SyllabusImportLog",
 ]

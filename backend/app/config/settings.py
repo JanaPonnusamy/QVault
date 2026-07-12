@@ -102,6 +102,10 @@ class Settings(BaseSettings):
         return self.storage_dir / "documents"
 
     @property
+    def catalog_dir(self) -> Path:
+        return self.storage_dir / "catalog"
+
+    @property
     def templates_dir(self) -> Path:
         return self.assets_dir / "templates"
 
@@ -114,18 +118,35 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
-    def mssql_odbc_connect(self) -> str:
-        """Raw ODBC connection string for pyodbc / SQLAlchemy odbc_connect."""
+    def mssql_server_address(self) -> str:
+        """SERVER= value: named instances (e.g. HOST\\SQLEXPRESS) resolve their own
+        dynamic port and must not have ,port appended; plain hosts do."""
+        if "\\" in self.mssql_server:
+            return self.mssql_server
+        return f"{self.mssql_server},{self.mssql_port}"
+
+    def _mssql_connect(self, database: str) -> str:
         parts = [
             f"DRIVER={{{self.mssql_driver}}}",
-            f"SERVER={self.mssql_server},{self.mssql_port}",
-            f"DATABASE={self.mssql_database}",
+            f"SERVER={self.mssql_server_address}",
+            f"DATABASE={database}",
             f"UID={self.mssql_user}",
             f"PWD={self.mssql_password}",
         ]
         if self.mssql_trust_cert:
             parts.append("TrustServerCertificate=yes")
         return ";".join(parts) + ";"
+
+    @property
+    def mssql_odbc_connect(self) -> str:
+        """Raw ODBC connection string for pyodbc / SQLAlchemy odbc_connect."""
+        return self._mssql_connect(self.mssql_database)
+
+    @property
+    def mssql_master_odbc_connect(self) -> str:
+        """Same server, connected to `master` — used to create/check the target
+        database itself before it exists."""
+        return self._mssql_connect("master")
 
     @property
     def sqlalchemy_url(self) -> str:
@@ -148,6 +169,7 @@ settings.storage_dir.mkdir(parents=True, exist_ok=True)
 settings.jobs_dir.mkdir(parents=True, exist_ok=True)
 settings.ncert_dir.mkdir(parents=True, exist_ok=True)
 settings.documents_dir.mkdir(parents=True, exist_ok=True)
+settings.catalog_dir.mkdir(parents=True, exist_ok=True)
 (ROOT / "database").mkdir(parents=True, exist_ok=True)
 for _sub in ("videos", "shorts", "reels", ".work"):
     (settings.output_dir / _sub).mkdir(parents=True, exist_ok=True)

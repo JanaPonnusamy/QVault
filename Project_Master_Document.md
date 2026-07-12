@@ -15,11 +15,13 @@ later make them searchable/classified/answerable. Built new; NexusYTSync
 
 ## Current Version
 
-**v0.9.0** (Knowledge Research Engine: URL/topic AI research — extraction + LLM analysis + consensus + reports; module copied from NexusYTSync and wired in per explicit copy-verbatim instruction).
+**v0.10.0** (Official Exam Syllabus Catalog Foundation: generic Exam→Subject→Unit→Chapter→Topic hierarchy on an independent SQL Server `QVault` database, reusable syllabus-PDF importer).
 
 ## Current Sprint
 
-Phase X — Video Generation Engine: ✅ implemented, live-verified and committed (`41f14bd`) on the new **`develop`** branch (Question JSON → glassmorphism quiz videos, landscape + Shorts/Reels, provider-abstracted TTS, streamed ffmpeg rendering, `/videos` module). **All development happens on `develop` from now on; `main` receives merges.**
+Phase 3 (Syllabus Catalog) — Official Exam Syllabus Catalog Foundation: ✅ implemented and live-verified on real SQL Server (not committed — awaiting manual sign-off per explicit instruction). Generic multi-tenant catalog schema (`catalog.exam/subject/unit/chapter/topic`, GUID PKs) that any future exam (JEE, CUET, UPSC, SSC, RRB, Banking, TNPSC, State PSC, Police, Teaching) can populate without a schema change; idempotent SQL-Server-only startup bootstrap (create DB → create schemas → `create_all`); config-driven, reusable syllabus PDF importer (no exam hardcoded into the parser). NEET's official NTA syllabus PDF has not yet been supplied, so the catalog is empty in the real database — only the pipeline was proven, using a synthetic test PDF that was imported and then deleted.
+
+Previous: Phase X — Video Generation Engine: ✅ implemented, live-verified and committed (`41f14bd`) on the new **`develop`** branch (Question JSON → glassmorphism quiz videos, landscape + Shorts/Reels, provider-abstracted TTS, streamed ffmpeg rendering, `/videos` module). **All development happens on `develop` from now on; `main` receives merges.**
 
 Previous: Knowledge Research — ✅ complete and verified live (Mode A URL research end-to-end inside QVault: RBAC → download → Whisper → OpenRouter analysis → facts/entities/report; frontend page + history wired at `/research`).
 
@@ -43,6 +45,7 @@ Previous: Knowledge Research — ✅ complete and verified live (Mode A URL rese
 | 6 | Knowledge Mapping Engine (hierarchical knowledge tree + Explorer) | ✅ Complete |
 | Platform P1 | SQL Server migration + Content Assembly Engine + Knowledge Reader | ✅ Complete |
 | 3 (Phase 3) | Instagram Acquisition Module (reuses video pipeline: download → frames → OCR → classification) | ✅ Complete |
+| Phase 3 (Syllabus Catalog) | Official Exam Syllabus Catalog Foundation (generic hierarchy + SQL Server bootstrap + reusable PDF importer) | ✅ Complete |
 
 ---
 
@@ -133,10 +136,24 @@ E:\QVault\
 | `knowledge_entities` | Extracted entities (name/type/category/confidence) | Knowledge Research |
 | `knowledge_consensus` | Cross-source consensus (practices/differences/conflicts/recommendation) | Knowledge Research |
 | `knowledge_ai_runs` | LLM execution metadata (provider/model/prompt version/tokens/cost/latency) | Knowledge Research |
+| `catalog.exam` | **Generic** exam registry (NEET/JEE/UPSC/... — GUID PK, multi-tenant/audit) | Syllabus Catalog |
+| `catalog.subject` | Subjects under an exam (GUID PK, FK `exam_id`) | Syllabus Catalog |
+| `catalog.unit` | Units under a subject (GUID PK, FK `subject_id`) | Syllabus Catalog |
+| `catalog.chapter` | Chapters under a unit (GUID PK, FK `unit_id`) | Syllabus Catalog |
+| `catalog.topic` | Topics under a chapter (GUID PK, FK `chapter_id`) — future `questions` rows will reference this hierarchy | Syllabus Catalog |
+| `system.syllabus_import_log` | Status/error/count log for every syllabus PDF import attempt | Syllabus Catalog |
 
 > Note: the six `knowledge_*` Research tables are created by the module's own
 > raw-sqlite3 repository (copied verbatim from NexusYTSync), not SQLAlchemy —
 > SQLite backend only until the backlog refactor.
+
+> Note: the Syllabus Catalog's `catalog.*`/`system.*` tables are schema-qualified
+> only on SQL Server; on SQLite (no multi-schema support) they fall back to plain
+> `exam`/`subject`/.../`syllabus_import_log` table names in the single default
+> database file. 5 other reserved schemas (`question`, `knowledge`, `media`,
+> `video`, `acquisition` — note this is distinct from the existing `acquisition_jobs`
+> table, which stays in the default schema) are created empty at startup, ready
+> for future modules.
 
 Schema is created via `Base.metadata.create_all` (works on SQLite **and** SQL
 Server). On SQLite, a lightweight `ALTER TABLE` column migration runs in
@@ -541,20 +558,20 @@ Knowledge Explorer.
 - **Future Improvements:** persist/replay the last-used strategy per source as a smarter default; per-strategy scene-threshold auto-tuning; surface the Frame Sampling estimate before Instagram cookie-gated URLs (currently probes require a reachable source).
 
 ### 20. Knowledge Research Engine
-- **Purpose:** AI-powered research from a single YouTube URL (Mode A) or a topic searched across top-N YouTube videos (Mode B): per-source text extraction (Whisper transcript + subtitles + frame OCR) → LLM analysis (facts/entities/timeline/recommendations, structured JSON) → cross-source consensus → JSON + Markdown research report. Provider-abstracted LLM (OpenAI-compatible; OpenRouter live today) and source-search layers designed for future PDF/audio/image/website sources.
-- **Status:** ✅ Complete · **Sprint:** Knowledge Research (module copied verbatim from the NexusYTSync implementation per explicit instruction — *copy + wire, no redesign*; deviations from QVault house architecture are noted below)
-- **Backend Components:** `services/knowledge_research_service.py` (orchestrator), `services/knowledge_extraction_service.py` (dispatcher; video extractor), `services/llm_service.py` + `services/llm_providers/` (provider registry; `openai_provider` with retry, serves OpenRouter via base URL), `services/source_search_service.py` + `services/search_providers/` (YouTube `ytsearchN:`), `services/knowledge_frame_extraction_service.py` (module's own ffmpeg sampler — renamed on copy; distinct from QVault's `frame_extraction_service.py`), `services/ocr_service.py`, `services/subtitle_parser.py`, `services/whisper_wrapper.py` (faster-whisper base/int8), `services/yt_dlp_wrapper.py`, `services/knowledge_prompts.py` (versioned prompts), `services/knowledge_executor.py` (thread-pool executor abstraction), `repositories/knowledge_repository.py` (**raw sqlite3**, self-creating schema), `config/knowledge_config.py` (reads unprefixed `OPENAI_*`/`LLM_PROVIDER` keys from `config/.env`), `database/database_manager.py` (wiring shim → `database/qvault.db`), `api/routers/research.py` (`/api/research/*`, RBAC-guarded).
-- **Frontend Components:** `pages/KnowledgeResearchPage.tsx` (form + live progress pipeline + results tabs), `pages/KnowledgeResearchHistoryPage.tsx` (filterable history), `components/knowledge-research/` (7 components), `services/knowledgeResearchApi.ts` (rewired to QVault's authenticated `api/client`), `types/knowledgeResearch.ts`. Components are Tailwind-styled (copied): Tailwind v3 added **utilities-only** (`corePlugins.preflight=false`, content globs limited to this module) so Bootstrap and all existing pages are untouched.
+- **Purpose:** AI-powered research from a single YouTube URL (Mode A) or a topic searched across top-N YouTube videos (Mode B): per-source text extraction (Whisper transcript + subtitles + frame OCR) → LLM analysis (facts/entities/timeline/recommendations, structured JSON) → cross-source consensus → JSON + Markdown research report. Provider-abstracted LLM (OpenAI chat-completions protocol, natively or via compatibility base URL) and source-search layers designed for future PDF/audio/image/website sources.
+- **Status:** ✅ Complete · **Sprint:** Knowledge Research (module copied verbatim from the NexusYTSync implementation per explicit instruction — *copy + wire, no redesign*; deviations from QVault house architecture are noted below). Multi-provider LLM support + UI redesign added 2026-07-10 (see Change History v0.9.x).
+- **Backend Components:** `services/knowledge_research_service.py` (orchestrator; accepts `temperature`/`max_tokens` per session; `cancel_session`/`delete_session`), `services/knowledge_extraction_service.py` (dispatcher; video extractor), `services/llm_service.py` + `services/llm_providers/` (provider registry; `openai_provider` with retry + `list_models()`), `services/source_search_service.py` + `services/search_providers/` (YouTube `ytsearchN:`), `services/knowledge_frame_extraction_service.py` (module's own ffmpeg sampler — renamed on copy; distinct from QVault's `frame_extraction_service.py`), `services/ocr_service.py`, `services/subtitle_parser.py`, `services/whisper_wrapper.py` (faster-whisper base/int8), `services/yt_dlp_wrapper.py`, `services/knowledge_prompts.py` (versioned prompts), `services/knowledge_executor.py` (thread-pool executor abstraction), `repositories/knowledge_repository.py` (**raw sqlite3**, self-creating schema), `config/knowledge_config.py` (`PROVIDER_SPECS` registry — openrouter/openai/anthropic/google/ollama; each just names its key env var, base URL, default-base-URL, default-model env var, and whether a key is required; legacy `LLM_PROVIDER=openai` + OpenRouter-shaped `OPENAI_BASE_URL` is detected and treated as `openrouter`), `database/database_manager.py` (wiring shim → `database/qvault.db`), `api/routers/research.py` (`/api/research/*`, RBAC-guarded; in-memory 10-min model-list cache keyed by provider).
+- **Frontend Components:** `pages/KnowledgeResearchPage.tsx` (form + live progress pipeline + results tabs), `pages/KnowledgeResearchHistoryPage.tsx` (filterable history), `components/knowledge-research/` — `ResearchForm` (provider/model/temperature/max-tokens controls), `ProgressTracker`, `ResultsView`, `DocumentSummaries`, `FactsTable`, `EntitiesTable`, `ConsensusPanel`, `HistoryDrawer` (past sessions — reopen/duplicate/delete), `SettingsDrawer` (per-provider configured status + required key env var name, key never leaves the server), `format.ts` (shared formatters) — `services/knowledgeResearchApi.ts` (rewired to QVault's authenticated `api/client`), `types/knowledgeResearch.ts`. Tailwind v3 **utilities-only** (`corePlugins.preflight=false`, content globs limited to this module) so Bootstrap and all existing pages are untouched.
 - **Database Tables:** `knowledge_sessions`, `knowledge_documents`, `knowledge_facts`, `knowledge_entities`, `knowledge_consensus`, `knowledge_ai_runs` — created by the module's own `CREATE TABLE IF NOT EXISTS` (raw sqlite3), **not** SQLAlchemy models. Large text is never stored in the DB — only file paths.
 - **Workers:** module's own `BackgroundTaskExecutor` (ThreadPoolExecutor) — *not* the acquisition worker (copy-verbatim constraint).
-- **APIs:** `GET /api/research/providers`, `POST/GET /api/research/sessions`, `GET /api/research/sessions/{id}[/results|/facts|/entities|/consensus]` — `research:view`/`research:execute` permissions (seeded).
+- **APIs:** `GET /api/research/providers` (per-provider label/configured-flag/requires_key/key_env/default_model + `default_temperature`/`default_max_tokens`), `GET /api/research/providers/{provider}/models` (live model list, cached), `POST/GET /api/research/sessions` (create accepts `temperature`/`max_tokens`), `POST /api/research/sessions/{id}/cancel`, `DELETE /api/research/sessions/{id}`, `GET /api/research/sessions/{id}[/results|/facts|/entities|/consensus]` — `research:view`/`research:execute` permissions (seeded).
 - **Storage:** `storage/knowledge/<session_id>/document_NNN/{transcript,subtitle,ocr,merged}.txt + {summary,facts,entities}.json`; session-level `report.json` + `report.md`. Media (video/audio/frames/vtt) deleted after extraction.
-- **Configuration:** `config/.env` (git-ignored): `LLM_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_BASE_URL` (OpenRouter live), `OPENAI_DEFAULT_MODEL`; template in `config/.env.example`.
-- **Dependencies:** `openai` (SDK, OpenAI-compatible endpoints), `faster-whisper` (added to requirements.txt); reuses installed yt-dlp/rapidocr/ffmpeg.
-- **Reusable Components:** LLM provider registry (`llm_service.py`) is the platform's first LLM layer — future modules should call `LLMService.generate/generate_json`, never a vendor SDK.
-- **Verification Status:** ✅ Live end-to-end inside QVault: RBAC login → `POST /api/research/sessions` (Mode A, real YouTube URL) → download → Whisper transcript → subtitles → LLM analysis via real OpenRouter → facts/entities/ai-run rows in `qvault.db` → `report.json`/`report.md` under `storage/knowledge/1/` → `COMPLETED` at 100%. Frontend builds clean (`tsc && vite build`); vite proxy → backend :8004 verified. (Mode B topic research verified end-to-end in the source implementation — 5 videos, consensus, 0.85 confidence.)
+- **Configuration:** `config/.env` (git-ignored): `LLM_PROVIDER` (default `openrouter`), per-provider `{OPENROUTER,OPENAI,ANTHROPIC,GOOGLE,OLLAMA}_API_KEY` / `_BASE_URL` / `_DEFAULT_MODEL`; template in `config/.env.example`.
+- **Dependencies:** `openai` (SDK, OpenAI-compatible endpoints — used for every provider including OpenRouter/Anthropic/Google/Ollama via base-URL swap), `faster-whisper` (added to requirements.txt); reuses installed yt-dlp/rapidocr/ffmpeg.
+- **Reusable Components:** LLM provider registry (`llm_service.py` + `PROVIDER_SPECS`) is the platform's first LLM layer — future modules should call `LLMService.generate/generate_json`, never a vendor SDK; adding a new OpenAI-compatible provider is a `PROVIDER_SPECS` entry, no code change.
+- **Verification Status:** ✅ Live end-to-end inside QVault: RBAC login → `POST /api/research/sessions` (Mode A, real YouTube URL) → download → Whisper transcript → subtitles → LLM analysis via real OpenRouter → facts/entities/ai-run rows in `qvault.db` → `report.json`/`report.md` under `storage/knowledge/1/` → `COMPLETED` at 100%. Frontend builds clean (`tsc && vite build`); vite proxy → backend :8004 verified. (Mode B topic research verified end-to-end in the source implementation — 5 videos, consensus, 0.85 confidence.) Multi-provider registry + redesigned UI re-verified: backend imports clean, `tsc && vite build` clean.
 - **Known deviations from house architecture (accepted per copy-verbatim instruction):** raw-sqlite3 repository (SQLite backend only — **not** SQL Server compatible), own thread-pool instead of acquisition worker, duplicate yt-dlp/OCR wrappers in `services/` alongside QVault's `integrations/`, dataclass models alongside SQLAlchemy. Refactor onto house infrastructure is a backlog item.
-- **Future Improvements:** port repository to SQLAlchemy (SQL Server support); route background work through the acquisition worker; merge duplicate yt-dlp/OCR wrappers into `integrations/`; PDF/audio/image/website extractors; Claude/Gemini/Ollama providers; PDF/DOCX report export.
+- **Future Improvements:** port repository to SQLAlchemy (SQL Server support); route background work through the acquisition worker; merge duplicate yt-dlp/OCR wrappers into `integrations/`; PDF/audio/image/website extractors; PDF/DOCX report export.
 
 ### 21. Video Generation Engine (Phase X)
 - **Purpose:** Deterministic rendering engine (not an AI video generator) that turns stored Question JSON into finished educational quiz videos: YouTube landscape 1920×1080 (20–25 questions, ~10–12 min) and portrait 1080×1920 Shorts/Reels (1 question, ~20–35 s) — glassmorphism theme, animated gradient background + particles, natural TTS narration, word-highlight subtitles, per-question timeline (question → narration → options → thinking pause → 3-2-1 countdown → correct-answer glow → answer card → explanation card).
@@ -570,6 +587,21 @@ Knowledge Explorer.
 - **Reusable Components:** the TTS provider registry is the platform's speech layer (any future module calls `get_tts_provider()`); JSON theme templates; `Layout` orientation abstraction.
 - **Verification Status:** ✅ Backend imports (101 routes); frontend `tsc && vite build` clean; live E2E on a real server: login → sources (5,535 usable of 6,964 questions detected) → preview → single landscape generate + batch(2) shorts → real edge-TTS narration → mixed audio with countdown ticks → streamed ffmpeg render → MP4 + SRT + thumbnail on disk + DB rows; portrait frames visually verified (glass cards, 2-per-row options, countdown ring, green reveal + check + dim, answer/explanation cards, word-highlight subtitles). Render ~90 ms/frame @1080p after profiling (region-crop glass blur, alpha-pulse instead of per-frame rescale).
 - **Future Improvements:** background-music asset pack; Whisper forced alignment for word timings on providers without boundaries; per-region rendering acceleration (numpy compositor); job cancellation; upload/publish integrations (YouTube/Instagram APIs); per-template intro/outro cards.
+
+### 22. Official Exam Syllabus Catalog Foundation
+- **Purpose:** Generic exam syllabus catalog (Exam → Subject → Unit → Chapter → Topic) that every future question/video/mock-test/analytics/recommendation feature will reference — built exam-agnostic from day one (NEET first, but nothing NEET-specific lives in the schema or importer) — plus a reusable official-syllabus-PDF import engine and an independent SQL Server `QVault` database (never the legacy UniNex database).
+- **Status:** ✅ Complete · **Sprint:** Phase 3 (Syllabus Catalog) — **not committed**, awaiting manual sign-off per explicit instruction.
+- **Backend Components:** `models/mixins.py` (`TenantAuditMixin`: `tenant_id`/`created_on`/`created_by`/`modified_on`/`modified_by`/`is_deleted`, shared by every catalog/system table; `DEFAULT_TENANT_ID` fixed single-tenant placeholder until a tenant module exists), `models/catalog.py` (`Exam`/`Subject`/`Unit`/`Chapter`/`Topic` — GUID (`Uuid`) PKs, `display_order`, unique `(parent, code)` constraints, indexed FKs; schema-qualified `catalog.*` on SQL Server, unqualified on SQLite via a `CATALOG_SCHEMA = None if settings.is_sqlite else "catalog"` switch since SQLite has no multi-schema support), `models/system.py` (`SyllabusImportLog` in `system.*`), `database/mssql_bootstrap.py` (`ensure_database` — `IF DB_ID(...) IS NULL CREATE DATABASE`, connecting to `master` first; `ensure_schemas` — `IF SCHEMA_ID(...) IS NULL EXEC('CREATE SCHEMA ...')` for all 7 reserved schemas `catalog/question/knowledge/media/video/acquisition/system`; wired into `database/session.py::init_db()`, gated on `engine.dialect.name == "mssql"` so the SQLite dev default is untouched), `integrations/syllabus_pdf_parser.py` (`SyllabusPdfParser` + `SyllabusParseConfig`: deterministic PyMuPDF line extraction → config-driven Subject/Unit/Chapter/Topic classification via regex; `NEET_CONFIG` default; a new exam is a new config, never a parser code change), `repositories/catalog_repository.py` (reads + `exam_tree` via `selectinload`; `upsert_syllabus` — idempotent create-or-update by slugified `(parent, code)`, collision-safe via a per-parent `_unique_code` suffixing pass, so re-importing the same PDF updates in place rather than duplicating), `services/syllabus_import_service.py` (`PARSE_CONFIGS` registry keyed by exam code; saves the uploaded PDF under `storage/catalog/syllabus/<EXAM>/`, logs every attempt to `SyllabusImportLog`, pushes a `notification_service` event), `api/routers/catalog.py` (`/api/catalog/*`), `config/settings.py` (`catalog_dir`; `mssql_server_address`/`_mssql_connect`/`mssql_master_odbc_connect` — named-instance-aware connection string builder, fixes a latent bug where a named SQL Server instance like `HOST\SQLEXPRESS` had `,1433` wrongly appended).
+- **Frontend Components:** — (backend foundation phase; no UI yet — future phases build against `/api/catalog/*`).
+- **Database Tables:** `catalog.exam`, `catalog.subject`, `catalog.unit`, `catalog.chapter`, `catalog.topic`, `system.syllabus_import_log` — all new, all multi-tenant/audit-columned, all GUID-keyed.
+- **Workers:** — (import runs synchronously on request; PDFs are small and parsing is fast — no job/progress plumbing needed).
+- **APIs:** `/api/catalog/`: `GET stats`, `GET exams`, `GET exams/{id}/tree` (full nested syllabus), `GET exams/{id}/subjects`, `GET subjects/{id}/units`, `GET units/{id}/chapters`, `GET chapters/{id}/topics`, `POST import` (multipart PDF + `exam_code` form field), `GET import/logs` — `catalog:view/execute/delete` RBAC seeded.
+- **Storage:** `storage/catalog/syllabus/<EXAM_CODE>/<uuid>_<filename>.pdf`.
+- **Configuration:** reuses existing `QVAULT_DB_BACKEND`/`QVAULT_MSSQL_*` (no new env keys); local `config/.env` (gitignored) now points at the real SQL Server instance already used by the legacy UniNex project on this machine (`DESKTOP-53U6M3S\SQLEXPRESS`, same `sa` login already in `settings.py`'s defaults) but its own independent `QVault` database — `QVAULT_MSSQL_DATABASE=QVault` was already the settings default.
+- **Dependencies:** PyMuPDF (fitz, already installed), SQLAlchemy `Uuid` type (2.0+, already the minimum version).
+- **Reusable Components:** `TenantAuditMixin` (any future business table); `SyllabusPdfParser`/`SyllabusParseConfig` (any future exam's official syllabus PDF); `mssql_bootstrap.py` (any future schema-qualified module); the 7 reserved schemas are created empty and ready for future modules (question bank → `question`, knowledge graph → `knowledge`, media/video registries, acquisition).
+- **Verification Status:** ✅ Live-verified against the **real** SQL Server 2014 instance (not just SQLite): backend startup created the `QVault` database (`DB_ID` check), all 7 schemas, 5 `catalog.*` tables + 1 `system.*` table with correct `UNIQUEIDENTIFIER` PKs, FKs, unique constraints and indexes (confirmed via `sys.indexes`/reflection) — re-running startup produced zero errors and zero duplicate objects (idempotent). End-to-end import verified with a synthetic NEET-shaped sample PDF (not real syllabus content — the real NTA PDF has not been supplied yet): `SyllabusImportService.import_pdf` → 3 subjects/4 units/4 chapters/11 topics created; re-importing the same PDF produced 0 new rows (true idempotency) with identical catalog stats. Full HTTP flow verified via `TestClient`: login → `/api/catalog/import` (multipart) → `/api/catalog/exams` → `/api/catalog/exams/{id}/tree` → `/subjects`/`/units` → `/import/logs`, plus 404 (unknown exam) and 401 (no token) checks. All synthetic test rows, notifications and the test PDF were deleted from the real database/storage after verification — the catalog is empty in the real `QVault` database pending the actual official NEET PDF. SQLite dev-default path re-verified with no regression (29 tables, catalog/system tables unqualified).
+- **Future Improvements:** run the real NEET import once the official NTA syllabus PDF is supplied (see Known Issues); frontend Syllabus Catalog admin page; `chapter_pattern` configs for exams whose syllabus PDFs do have an explicit chapter level; soft-delete-aware re-import (currently topics removed from a newer PDF are left in place rather than auto-marked `is_deleted`); GUID clustering-key performance tuning before question rows reach millions (e.g. sequential GUID generation or a non-GUID clustered key) — noted, not yet needed at this scale.
 
 ---
 
@@ -621,7 +653,10 @@ Knowledge Explorer.
 | GET | `/api/content/stats`, `/api/content/documents/{id}` | `content:view` |
 | POST | `/api/content/documents/{id}/assemble` | `content:execute` |
 | GET | `/api/research/providers` | `research:view` |
+| GET | `/api/research/providers/{provider}/models` | `research:view` |
 | POST | `/api/research/sessions` | `research:execute` |
+| POST | `/api/research/sessions/{id}/cancel` | `research:execute` |
+| DELETE | `/api/research/sessions/{id}` | `research:execute` |
 | GET | `/api/research/sessions[?status&topic&date_from&date_to&provider&source_type]` | `research:view` |
 | GET | `/api/research/sessions/{id}[/results\|/facts\|/entities\|/consensus]` | `research:view` |
 | GET | `/api/videos`, `/api/videos/stats\|sources\|templates\|tts-providers\|jobs`, `/api/videos/{id}` | `videos:view` |
@@ -630,6 +665,11 @@ Knowledge Explorer.
 | GET | `/api/videos/{id}/download\|subtitles` | token (`videos:export`) |
 | GET | `/api/videos/{id}/thumbnail` | token (`videos:view`) |
 | DELETE | `/api/videos/{id}` | `videos:delete` |
+| GET | `/api/catalog/stats`, `/api/catalog/exams` | `catalog:view` |
+| GET | `/api/catalog/exams/{id}/tree\|/subjects` | `catalog:view` |
+| GET | `/api/catalog/subjects/{id}/units`, `/api/catalog/units/{id}/chapters`, `/api/catalog/chapters/{id}/topics` | `catalog:view` |
+| GET | `/api/catalog/import/logs` | `catalog:view` |
+| POST | `/api/catalog/import` (multipart PDF + `exam_code`) | `catalog:execute` |
 | GET | `/api/notifications` | authenticated |
 | POST | `/api/notifications/read-all`, `/api/notifications/{id}/read` | authenticated |
 | GET | `/api/health` | public |
@@ -659,8 +699,9 @@ default); `ncert_page_url`/`ncert_files_base`/
 video generation: `video_fps`/`video_template`/`video_concurrent_renders`,
 `tts_provider`/`tts_voice`/`tts_rate`/`tts_pitch` + per-provider keys
 (`tts_openai_api_key`, `tts_elevenlabs_api_key`, `tts_azure_key`+`tts_azure_region`,
-`tts_google_api_key`, `tts_piper_exe`+`tts_piper_model`). Permission modules are
-seeded in `core/seed.py`: `dashboard`, `youtube_extractor`, `instagram`, `ncert`, `documents`, `knowledge`, `content`, `research`, `videos`, `users`, `roles`, `settings`.
+`tts_google_api_key`, `tts_piper_exe`+`tts_piper_model`); `catalog_dir` (syllabus PDF
+storage, no new env key). Permission modules are
+seeded in `core/seed.py`: `dashboard`, `youtube_extractor`, `instagram`, `ncert`, `documents`, `knowledge`, `content`, `research`, `videos`, `catalog`, `users`, `roles`, `settings`.
 New DB keys: `db_backend`, `mssql_*`, `database_url` override (see `config/.env.example`).
 
 ## Current Status
@@ -726,16 +767,36 @@ knowledge extraction/mapping) remain intact. Repo under Git
   detection is for ruled tables (PyMuPDF `find_tables`); borderless tables and
   multi-column reading order are approximate. Image-only PDFs are flagged
   `needs_ocr` but not OCR'd (acquisition/extraction only).
+- **NEET syllabus not yet loaded:** the official NTA NEET syllabus PDF has not
+  been supplied, so `catalog.exam` is empty in the real database — the import
+  pipeline (parser + upsert + logging) was proven end-to-end with a synthetic
+  NEET-shaped sample PDF only, which was imported and then deleted. Run the
+  real import via `POST /api/catalog/import` (`exam_code=NEET`) once the PDF
+  is available; `NEET_CONFIG` in `integrations/syllabus_pdf_parser.py` may
+  need its regex patterns tuned against the actual document's exact wording.
+- **SQL Server named instances:** `mssql_server` may be a named instance
+  (e.g. `HOST\SQLEXPRESS`, which resolves its own dynamic port) rather than a
+  `host,port` pair — `settings.mssql_server_address` detects the `\` and skips
+  appending `,mssql_port` in that case. `config/.env` now points at this
+  machine's local `DESKTOP-53U6M3S\SQLEXPRESS` instance (the same one the
+  legacy UniNex project uses, same `sa` login as `settings.py`'s existing
+  defaults) with its own independent `QVault` database — verified live:
+  DB/schema/table bootstrap, full syllabus
+  import, and the catalog API all exercised against this real server, not
+  just SQLite.
 
 ## Future Roadmap
 
+- Run the real official NEET syllabus import once the NTA PDF is supplied.
 - PDF & Image acquisition sources (reuse `acquisition_jobs` + acquisition worker).
 - OCR fallback for documents flagged `needs_ocr` (image-only PDFs).
 - Question extraction from extracted document structure (structured text → questions).
-- Question Bank, Validation, Classification, Syllabus, Knowledge Graph.
+- Question Bank, Validation, Classification, Knowledge Graph — referencing the
+  new Syllabus Catalog hierarchy (`exam_id`/`subject_id`/`unit_id`/`chapter_id`/`topic_id`).
 - Search & Answering (embeddings → vector store; likely Postgres + pgvector).
 - Hardening: durable queue, auth refresh tokens, audit logs, metrics.
 - User Portal (student modules).
+- Syllabus Catalog admin UI (frontend page consuming `/api/catalog/*`).
 
 ## Change History
 
@@ -752,4 +813,6 @@ knowledge extraction/mapping) remain intact. Repo under Git
 | 2026-06-29 | v0.6.0 | Platform Phase 1 — analyzed Nexora reference (no platform code copied; rationale recorded); dialect-aware **SQL Server** support (`db_backend`/`mssql_*`, `init_sqlserver.py`; live-verified) keeping existing SQLAlchemy auth/JWT/RBAC; **Content Assembly Engine** (`content_sections`/`content_blocks`, deterministic reconstruction, raw preserved); **Knowledge Reader** (Reader/Developer modes). |
 | 2026-07-08 | v0.8.0 | Maintenance — **Frame Extraction Engine (Strategy Pattern)**: `services/frame_extraction_service.py` replaces the old fixed-~2s-interval extraction with 4 selectable strategies (Fixed Interval 0.25–5s, Scene Detection, OCR Text Change, Hybrid default) + shared quality filters (dedup/best-quality/blank/blur/max-frames); `FrameExtractionService` is `core/worker.py`'s single call site, zero changes downstream (OCR/analysis/classification/questions untouched). Fixed a latent ffmpeg bug along the way: the image2 muxer errors on zero selected frames ("received no packets") for both `extract_frames_scene` and `extract_frames_sampled` — now treated as a valid empty result. `extraction_strategy`/`extraction_options` columns on `extraction_jobs`; `ExtractionStrategySelector` UI on both YouTube/Instagram pages. |
 | 2026-07-10 | v0.9.x | Maintenance — **TTS voice modulation + Tamil Nadu voice**: per-segment prosody (`ROLE_MODULATION` in `video_timeline_service.py` — energetic intro/outro, measured options, excited reveal, calm explanation) threaded through the `TTSProvider.synthesize(rate=, pitch=)` protocol; edge/azure/google/openai apply it, elevenlabs/kokoro/piper accept-and-ignore. Default narration voice is now `ta-IN-PallaviNeural` (Tamil Nadu accented English, young-female tone via per-voice `base_pitch` lift in the edge provider). Fixed edge-tts 7.x regression: `boundary="WordBoundary"` must be requested explicitly or subtitle word-highlighting silently degrades to estimated timings. TTS cache key now includes per-role rate/pitch. |
+| 2026-07-10 | v0.9.x | Maintenance — **Knowledge Research: multi-provider LLM + UI redesign**: `PROVIDER_SPECS` registry in `knowledge_config.py` (OpenRouter — new default, OpenAI, Anthropic, Google Gemini, Ollama local) — every provider speaks the OpenAI chat-completions protocol natively or via a compatibility base URL, so adding one is config-only; legacy `LLM_PROVIDER=openai` + `OPENAI_BASE_URL` pointed at OpenRouter is detected and treated as OpenRouter for back-compat. `GET /api/research/providers` now returns per-provider label/configured-flag/default-model (never the key itself); new `GET /api/research/providers/{provider}/models` lists live models with a 10-minute in-memory cache. Session create accepts `temperature`/`max_tokens`; new `POST /sessions/{id}/cancel` and `DELETE /sessions/{id}`. Frontend: `ResearchForm` rewritten (provider/model/temperature/max_tokens controls), new `HistoryDrawer` (past sessions, duplicate/reopen/delete) and `SettingsDrawer` (per-provider configured status, key env var names) replacing the old inline layout; `KnowledgeResearchHistoryPage`/`KnowledgeResearchPage` restructured around the drawers. |
 | 2026-07-08 | v0.8.0 | Maintenance — **Frame Sampling Mode**: inserted ahead of strategy selection (`Video → Frame Sampling → Strategy → OCR → Classification → Questions`); `sampling_fps` (every decoded frame / 30-15-10-5-2-1 FPS, default 10) controls how many candidates are examined via `FFmpeg.extract_frames_sampled` and an optional pre-filter on `extract_frames_scene`; Hybrid's OCR text-diff was fixed to never collapse two textless frames as "duplicates" (`collapse_empty_text=False`) so scene-detected camera cuts/diagram swaps with no OCR text survive. New pre-processing frame-count estimate (`ExtractionService.estimate_frames`, `POST /api/{extractor,sources/instagram}/estimate`, `YtDlp.probe_metadata` + duck-typed optional `VideoProvider.probe`) shown live in the Advanced UI. 66 new tests (103 total) built on real synthetic ffmpeg-generated local MP4s, including an exact reproduction of a 33ms/1-frame flash that 10 FPS sampling misses and every-decoded-frame sampling catches; live-verified against a real 213s YouTube video end-to-end. |
+| 2026-07-12 | v0.10.0 | Phase 3 (Syllabus Catalog) — **Official Exam Syllabus Catalog Foundation**: generic multi-tenant `catalog.exam/subject/unit/chapter/topic` hierarchy (GUID PKs, `TenantAuditMixin`), exam-agnostic by design (no NEET-specific logic in schema or importer); idempotent SQL-Server-only startup bootstrap (`database/mssql_bootstrap.py` — `IF DB_ID(...)`/`IF SCHEMA_ID(...)` create-database-and-7-schemas, gated off SQLite); config-driven reusable syllabus PDF importer (`integrations/syllabus_pdf_parser.py` + `services/syllabus_import_service.py`, `NEET_CONFIG` default, idempotent upsert-by-code with collision-safe slugging); `/api/catalog/*` REST API + `catalog` RBAC module. Fixed a latent named-SQL-Server-instance connection bug (`mssql_server_address`: instances like `HOST\SQLEXPRESS` must not have `,port` appended). Live-verified against the real SQL Server instance used by the legacy UniNex project on this machine (`DESKTOP-53U6M3S\SQLEXPRESS`), targeting its own independent `QVault` database: DB/schema/table/FK/index creation, idempotent re-run, full import pipeline with a synthetic sample PDF (created, verified, then deleted — the real NEET syllabus PDF has not been supplied yet), and the full HTTP API surface via `TestClient`. SQLite dev-default path re-verified with no regression. **Not committed** — awaiting manual sign-off per explicit instruction. |

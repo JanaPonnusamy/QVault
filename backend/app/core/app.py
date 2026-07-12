@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routers import (
     auth,
+    catalog,
     content,
     documents,
     extractor,
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(content.router)
     app.include_router(research.router)
     app.include_router(videos.router)
+    app.include_router(catalog.router)
 
     @app.get("/api/health", tags=["system"])
     def health():

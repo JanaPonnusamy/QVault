@@ -29,18 +29,8 @@ import pyodbc  # noqa: E402
 from app.config.settings import settings  # noqa: E402
 
 
-def _master_connection_string() -> str:
-    return (
-        f"DRIVER={{{settings.mssql_driver}}};"
-        f"SERVER={settings.mssql_server},{settings.mssql_port};"
-        "DATABASE=master;"
-        f"UID={settings.mssql_user};PWD={settings.mssql_password};"
-        + ("TrustServerCertificate=yes;" if settings.mssql_trust_cert else "")
-    )
-
-
 def create_database_if_absent() -> bool:
-    conn = pyodbc.connect(_master_connection_string(), autocommit=True)
+    conn = pyodbc.connect(settings.mssql_master_odbc_connect, autocommit=True)
     try:
         cur = conn.cursor()
         if cur.execute("SELECT db_id(?)", settings.mssql_database).fetchone()[0] is not None:

@@ -7,14 +7,17 @@ sprint finishes. Keep this file accurate after every sprint (see CLAUDE.md rule 
 
 ## BACKLOG
 
+- Run the real official NEET syllabus import (`POST /api/catalog/import`) once
+  the NTA syllabus PDF is supplied; tune `NEET_CONFIG` regex patterns against
+  its actual wording if needed
+- Syllabus Catalog admin UI (frontend page over `/api/catalog/*`)
 - PDF acquisition source (reuse `acquisition_jobs` + acquisition worker)
 - Image acquisition source (reuse `acquisition_jobs` + acquisition worker)
 - OCR fallback for documents flagged `needs_ocr` (image-only PDFs)
-- Question extraction from extracted document structure (structured text → questions)
+- Question extraction from extracted document structure (structured text → questions), referencing the Syllabus Catalog hierarchy
 - Question Bank module
 - Question Validation module
 - Question Classification module
-- Syllabus Management module
 - Knowledge Graph module
 - Search & Answering (embeddings + vector store; evaluate Postgres + pgvector)
 - NCERT enhancements: cover thumbnails, per-chapter download, job cancellation
@@ -27,6 +30,32 @@ sprint finishes. Keep this file accurate after every sprint (see CLAUDE.md rule 
 - _(none)_
 
 ## COMPLETED
+
+### Phase 3 (Syllabus Catalog) — Official Exam Syllabus Catalog Foundation (v0.10.0)
+- Generic multi-tenant `catalog.exam/subject/unit/chapter/topic` hierarchy (GUID PKs, `TenantAuditMixin`: tenant_id/created_on/created_by/modified_on/modified_by/is_deleted) — exam-agnostic by design, no NEET-specific logic in the schema
+- Idempotent SQL-Server-only startup bootstrap (`database/mssql_bootstrap.py`): `IF DB_ID(...) IS NULL CREATE DATABASE`, `IF SCHEMA_ID(...) IS NULL CREATE SCHEMA` for 7 reserved schemas (catalog/question/knowledge/media/video/acquisition/system); gated off SQLite (dev default unaffected)
+- Config-driven, reusable syllabus PDF importer: `integrations/syllabus_pdf_parser.py` (deterministic PyMuPDF line extraction + regex-based `SyllabusParseConfig`, `NEET_CONFIG` default) + `services/syllabus_import_service.py` (idempotent upsert-by-code, collision-safe slugging, import log + notification) — a new exam is a new config, never a parser code change
+- `/api/catalog/*` REST API (exams/subjects/units/chapters/topics/tree/import/import-logs) + `catalog` RBAC module (view/execute/delete)
+- Fixed a latent named-SQL-Server-instance connection bug (`HOST\SQLEXPRESS` style servers must not have `,port` appended — `settings.mssql_server_address`)
+- Live-verified against the real SQL Server instance already used by the legacy UniNex project on this machine (`DESKTOP-53U6M3S\SQLEXPRESS`, same `sa` login as `settings.py`'s existing defaults), targeting its own independent `QVault` database (never UniNex's): DB/schema/table/FK/index creation confirmed via `sys.indexes` + reflection, idempotent re-run (zero duplicate objects), full import pipeline + re-import idempotency proven with a synthetic sample PDF (created, verified, then deleted from the real DB — the actual NTA NEET PDF has not been supplied), and the full HTTP API surface (auth → RBAC → import → tree/list → 404/401) via `TestClient`
+- SQLite dev-default path re-verified with no regression (29 tables, catalog/system tables unqualified there)
+- Not committed — awaiting manual sign-off per explicit instruction; catalog is empty in the real database pending the real NEET PDF
+
+### Maintenance — Knowledge Research: multi-provider LLM + UI redesign (v0.9.x)
+- `PROVIDER_SPECS` registry (`knowledge_config.py`): OpenRouter (new default), OpenAI, Anthropic, Google Gemini, Ollama (local, no key required) — every provider speaks the OpenAI chat-completions protocol natively or via a compatibility base URL, so adding one is config-only, no code change
+- Legacy `LLM_PROVIDER=openai` + OpenRouter-shaped `OPENAI_BASE_URL` auto-detected and treated as `openrouter` (back-compat for existing `.env` files)
+- `GET /api/research/providers` returns per-provider label/configured-flag/requires_key/key_env/default_model (never the API key itself); new `GET /api/research/providers/{provider}/models` lists live models (10-min in-memory cache)
+- Session create accepts `temperature`/`max_tokens`; new `POST /sessions/{id}/cancel` and `DELETE /sessions/{id}`
+- Frontend redesign: `ResearchForm` rewritten (provider/model/temperature/max_tokens controls), new `HistoryDrawer` (past sessions — reopen/duplicate/delete) and `SettingsDrawer` (per-provider configured status + key env var name) replacing the old inline layout; `KnowledgeResearchPage`/`KnowledgeResearchHistoryPage` restructured around the drawers
+- Verified: backend imports cleanly, frontend `tsc && vite build` clean
+- Committed as `e2c2e97` on `develop` (bundled with the TTS voice-modulation maintenance change below)
+
+### Maintenance — TTS voice modulation + Tamil Nadu voice (v0.9.x)
+- Per-segment prosody (`ROLE_MODULATION` in `video_timeline_service.py`) threaded through `TTSProvider.synthesize(rate=, pitch=)`; edge/azure/google/openai apply it, elevenlabs/kokoro/piper accept-and-ignore
+- Default narration voice changed to `ta-IN-PallaviNeural` (Tamil Nadu accented English, young-female tone via per-voice `base_pitch` lift in the edge provider)
+- Fixed edge-tts 7.x regression: `boundary="WordBoundary"` must be requested explicitly or subtitle word-highlighting silently degrades to estimated timings
+- TTS cache key now includes per-role rate/pitch
+- Committed as `e2c2e97` on `develop`
 
 ### Phase X — Automated Educational Video Generation Engine
 - **Deterministic rendering engine** (no AI video generation): Question JSON (`storage/**/*.json`, existing schema reused unchanged) → finished quiz videos. YouTube landscape 1920×1080 (20–25 Q, ~10–12 min) and portrait 1080×1920 Shorts/Reels (1 Q, ~20–35 s) from **one shared timeline** — only the `Layout` differs (no duplicated layouts)

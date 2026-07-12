@@ -1,4 +1,5 @@
 import json
+import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -641,4 +642,92 @@ class VideoStats(BaseModel):
     shorts: int = 0
     reels: int = 0
     total_duration: float = 0
+
+
+# ---------- Syllabus Catalog ----------
+
+class TopicOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    code: str
+    name: str
+    display_order: int
+
+
+class ChapterOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    unit_id: uuid.UUID
+    code: str
+    name: str
+    display_order: int
+
+
+class ChapterTreeOut(ChapterOut):
+    topics: list[TopicOut] = []
+
+
+class UnitOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    subject_id: uuid.UUID
+    code: str
+    name: str
+    display_order: int
+
+
+class UnitTreeOut(UnitOut):
+    chapters: list[ChapterTreeOut] = []
+
+
+class SubjectOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    exam_id: uuid.UUID
+    code: str
+    name: str
+    display_order: int
+
+
+class SubjectTreeOut(SubjectOut):
+    units: list[UnitTreeOut] = []
+
+
+class ExamOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    code: str
+    name: str
+    description: str
+    display_order: int
+    is_active: bool
+
+
+class ExamTreeOut(ExamOut):
+    subjects: list[SubjectTreeOut] = []
+
+
+class CatalogStats(BaseModel):
+    exams: int = 0
+    subjects: int = 0
+    units: int = 0
+    chapters: int = 0
+    topics: int = 0
+
+
+class SyllabusImportLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    exam_code: str
+    source_file: str
+    status: str
+    subjects_count: int
+    units_count: int
+    chapters_count: int
+    topics_count: int
+    created_count: int
+    updated_count: int
+    error: str
+    started_at: datetime
+    finished_at: datetime | None = None
     total_size: int = 0

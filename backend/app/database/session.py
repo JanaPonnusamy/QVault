@@ -65,6 +65,11 @@ _NEW_COLUMNS: dict[str, dict[str, str]] = {
 def init_db() -> None:
     from app import models  # noqa: F401  (register mappers)
 
+    if engine.dialect.name == "mssql":
+        from app.database.mssql_bootstrap import bootstrap
+
+        bootstrap(engine)
+
     Base.metadata.create_all(bind=engine)
 
     # Legacy additive-column migration for pre-existing SQLite databases.
