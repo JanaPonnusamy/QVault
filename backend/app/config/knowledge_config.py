@@ -163,3 +163,15 @@ class KnowledgeConfig:
     @staticmethod
     def storage_root():
         return os.environ.get("KNOWLEDGE_STORAGE_ROOT", "storage/knowledge")
+
+    # Biases topic search (Mode B) toward Indian / regional-language results
+    # via yt-dlp's geo_bypass_country (YouTube "gl") and youtube extractor_args
+    # "lang" (YouTube "hl") — a ranking hint, not a hard filter, so unrelated
+    # topics still surface their best global match. Empty disables the bias.
+    @staticmethod
+    def search_country():
+        return os.environ.get("KNOWLEDGE_SEARCH_COUNTRY", "IN")
+
+    @staticmethod
+    def search_lang():
+        return os.environ.get("KNOWLEDGE_SEARCH_LANG", "ta")
