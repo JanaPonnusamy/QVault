@@ -20,6 +20,7 @@ from app.config.settings import settings
 from app.core.seed import seed
 from app.database.session import init_db
 from app.integrations.ytdlp import log_cookie_source
+from app.services.health_service import get_health_status
 from app.shared.logging import configure_logging
 
 
@@ -55,7 +56,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health", tags=["system"])
     def health():
-        return {"status": "ok", "app": settings.app_name}
+        return {"app": settings.app_name, **get_health_status()}
 
     return app
 

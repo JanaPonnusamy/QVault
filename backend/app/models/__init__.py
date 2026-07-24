@@ -6,7 +6,7 @@ from app.models.knowledge import KnowledgeNode
 from app.models.content import ContentBlock, ContentSection
 from app.models.video import Video
 from app.models.catalog import Chapter, Exam, Subject, Topic, Unit
-from app.models.system import SyllabusImportLog
+from app.models.system import ApplicationSetting, AuditLog, DatabaseVersion, SyllabusImportLog, Tenant
 
 __all__ = [
     "User",
@@ -32,4 +32,8 @@ __all__ = [
     "Chapter",
     "Topic",
     "SyllabusImportLog",
+    "DatabaseVersion",
+    "Tenant",
+    "ApplicationSetting",
+    "AuditLog",
 ]

@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import Ncert from "./pages/Ncert";
 import Review from "./pages/Review";
 import Roles from "./pages/Roles";
+import SyllabusCatalog from "./pages/SyllabusCatalog";
 import Users from "./pages/Users";
 import VideoGeneration from "./pages/VideoGeneration";
 import YouTubeExtractor from "./pages/YouTubeExtractor";
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="/research/history" element={<KnowledgeResearchHistoryPage />} />
         <Route path="/research/:sessionId" element={<KnowledgeResearchPage />} />
         <Route path="/videos" element={<VideoGeneration />} />
+        <Route path="/catalog" element={<SyllabusCatalog />} />
         <Route path="/users" element={<Users />} />
         <Route path="/roles" element={<Roles />} />
       </Route>

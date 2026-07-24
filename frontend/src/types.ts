@@ -403,3 +403,68 @@ export interface TimelinePreview {
   outro_in: number;
   scenes: TimelineScenePreview[];
 }
+
+export interface CatalogStats {
+  exams: number;
+  subjects: number;
+  units: number;
+  chapters: number;
+  topics: number;
+}
+
+export interface ExamOut {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  display_order: number;
+  is_active: boolean;
+}
+
+export interface SubjectOut {
+  id: string;
+  exam_id: string;
+  code: string;
+  name: string;
+  display_order: number;
+}
+
+export interface UnitOut {
+  id: string;
+  subject_id: string;
+  code: string;
+  name: string;
+  display_order: number;
+}
+
+export interface ChapterOut {
+  id: string;
+  unit_id: string;
+  code: string;
+  name: string;
+  display_order: number;
+}
+
+export interface TopicOut {
+  id: string;
+  chapter_id: string;
+  code: string;
+  name: string;
+  display_order: number;
+}
+
+export interface SyllabusImportLogOut {
+  id: string;
+  exam_code: string;
+  source_file: string;
+  status: string;
+  subjects_count: number;
+  units_count: number;
+  chapters_count: number;
+  topics_count: number;
+  created_count: number;
+  updated_count: number;
+  error: string;
+  started_at: string;
+  finished_at: string | null;
+}

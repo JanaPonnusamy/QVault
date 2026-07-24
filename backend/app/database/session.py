@@ -76,12 +76,16 @@ def init_db() -> None:
     # On a fresh SQL Server target, create_all() already builds the full current
     # schema, so this SQLite-only step is skipped (column evolution there is
     # handled by create_all for new tables; structural changes use Alembic later).
-    if engine.dialect.name != "sqlite":
-        return
+    if engine.dialect.name == "sqlite":
+        with engine.begin() as conn:
+            for table, columns in _NEW_COLUMNS.items():
+                existing = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
+                for name, ddl in columns.items():
+                    if name not in existing:
+                        conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
 
-    with engine.begin() as conn:
-        for table, columns in _NEW_COLUMNS.items():
-            existing = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
-            for name, ddl in columns.items():
-                if name not in existing:
-                    conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+    from app.database.migrations import MIGRATIONS, run_pending
+    from app.shared.logging import get_logger
+
+    get_logger("migrations").info("Checking migrations...")
+    run_pending(engine, MIGRATIONS)

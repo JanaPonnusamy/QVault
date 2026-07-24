@@ -32,7 +32,7 @@ export const MODULES: ModuleDef[] = [
 
   { key: "ocr", label: "OCR Management", icon: "bi-eye", color: "#0ea5e9", group: "Intelligence", available: false },
   { key: "knowledge_graph", label: "Knowledge Graph", icon: "bi-diagram-3", color: "#7c3aed", group: "Intelligence", available: false },
-  { key: "syllabus", label: "Syllabus Management", icon: "bi-list-check", color: "#059669", group: "Intelligence", available: false },
+  { key: "syllabus", label: "Syllabus Catalog", icon: "bi-list-check", color: "#059669", path: "/catalog", permission: "catalog:view", group: "Intelligence", available: true },
   { key: "ai_models", label: "AI Models", icon: "bi-cpu", color: "#e11d48", group: "Intelligence", available: false },
 
   { key: "analytics", label: "Analytics", icon: "bi-graph-up", color: "#2563eb", group: "Insights", available: false },

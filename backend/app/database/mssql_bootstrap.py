@@ -25,8 +25,10 @@ def ensure_database() -> None:
     """Create settings.mssql_database if IF DB_ID(...) shows it doesn't exist yet."""
     import pyodbc
 
+    logger.info("Connecting to SQL Server...")
     conn = pyodbc.connect(settings.mssql_master_odbc_connect, autocommit=True)
     try:
+        logger.info("Checking database...")
         cur = conn.cursor()
         exists = cur.execute("SELECT DB_ID(?)", settings.mssql_database).fetchone()[0] is not None
         if exists:
@@ -40,6 +42,7 @@ def ensure_database() -> None:
 
 def ensure_schemas(engine: Engine) -> None:
     """Create any of RESERVED_SCHEMAS that don't already exist (IF SCHEMA_ID(...) IS NULL)."""
+    logger.info("Creating schemas...")
     with engine.begin() as conn:
         for schema in RESERVED_SCHEMAS:
             conn.exec_driver_sql(
