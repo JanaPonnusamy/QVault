@@ -61,6 +61,37 @@ class ExtractionService:
         worker.submit_job(job.id)
         return job
 
+    def create_upload_job(
+        self,
+        filename: str,
+        data: bytes,
+        user_id: int | None,
+        source: str = "instagram",
+        extraction_options: ExtractionOptions | None = None,
+    ) -> ExtractionJob:
+        """Create a job from a locally uploaded video (drag & drop). The file is
+        saved into the job directory and the worker skips the download stage
+        (``upload://`` URL scheme), reusing the full frame-extraction pipeline."""
+        options = extraction_options or ExtractionOptions()
+        safe_name = Path(filename).name or "video.mp4"
+        job = ExtractionJob(
+            url=f"upload://{safe_name}",
+            source=source,
+            status="pending",
+            stage="Queued",
+            created_by=user_id,
+            title=safe_name,
+            extraction_strategy=options.strategy,
+            extraction_options=options.options_json(),
+        )
+        self.repo.add_job(job)  # commits and assigns id
+        job_dir = settings.jobs_dir / str(job.id)
+        job_dir.mkdir(parents=True, exist_ok=True)
+        ext = Path(safe_name).suffix.lower() or ".mp4"
+        (job_dir / f"video{ext}").write_bytes(data)
+        worker.submit_job(job.id)
+        return job
+
     def get_job(self, job_id: int) -> ExtractionJob | None:
         return self.repo.get_job(job_id)
 
