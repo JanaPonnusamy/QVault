@@ -60,7 +60,14 @@ export default function InstagramAcquisition() {
   const [ocrBusy, setOcrBusy] = useState(false);
   const [textOnly, setTextOnly] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const framesRef = useRef<HTMLDivElement>(null);
 
   const canExecute = can("instagram:execute");
   const canExport = can("instagram:export");
@@ -149,6 +156,32 @@ export default function InstagramAcquisition() {
     }
   }
 
+  async function uploadFile(file: File) {
+    if (!file) return;
+    setError("");
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await api.post<Job>(`${BASE}/upload`, form);
+      await loadJobs();
+      setSelectedId(res.data.id);
+    } catch (err) {
+      setError(apiError(err));
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    if (!canExecute) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) uploadFile(file);
+  }
+
   async function deleteJob(id: number) {
     try {
       await api.delete(`${BASE}/jobs/${id}`);
@@ -185,6 +218,20 @@ export default function InstagramAcquisition() {
     () => (textOnly ? frames.filter((f) => (f.ocr_text ?? "").trim().length > 0) : frames),
     [textOnly, frames]
   );
+
+  // Reels-style auto-scroll of the extracted-frames strip.
+  useEffect(() => {
+    const el = framesRef.current;
+    if (!autoScroll || !el || visibleFrames.length === 0) return;
+    const timer = window.setInterval(() => {
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) {
+        el.scrollTop = 0;
+      } else {
+        el.scrollTop += 1;
+      }
+    }, 30);
+    return () => window.clearInterval(timer);
+  }, [autoScroll, visibleFrames.length]);
 
   async function runOcr() {
     if (selectedId == null || selectedFrames.size === 0) return;
@@ -307,13 +354,25 @@ export default function InstagramAcquisition() {
                     disabled={!canExecute}
                   />
                 </div>
-                <ExtractionStrategySelector
-                  value={extractionOptions}
-                  onChange={setExtractionOptions}
-                  url={url}
-                  estimateEndpoint={`${BASE}/estimate`}
-                  disabled={!canExecute}
-                />
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary w-100 mt-2 d-flex justify-content-between align-items-center"
+                  onClick={() => setShowSettings((v) => !v)}
+                >
+                  <span><i className="bi bi-sliders me-1" />Extraction settings</span>
+                  <i className={`bi ${showSettings ? "bi-chevron-up" : "bi-chevron-down"}`} />
+                </button>
+                {showSettings && (
+                  <div className="mt-2">
+                    <ExtractionStrategySelector
+                      value={extractionOptions}
+                      onChange={setExtractionOptions}
+                      url={url}
+                      estimateEndpoint={`${BASE}/estimate`}
+                      disabled={!canExecute}
+                    />
+                  </div>
+                )}
                 <button className="btn btn-primary w-100 mt-2" disabled={submitting || !canExecute || !url.trim()}>
                   {submitting ? "Starting..." : (
                     <>
@@ -326,6 +385,52 @@ export default function InstagramAcquisition() {
                   <div className="form-text text-warning">You lack the execute permission for this module.</div>
                 )}
               </form>
+            </div>
+          </div>
+
+          <div className="card border-0 shadow-sm mb-3">
+            <div className="card-body">
+              <h6 className="fw-semibold mb-2">
+                <i className="bi bi-camera-video me-2" style={{ color: "#d6249f" }} />
+                Video viewer — drag &amp; drop to extract
+              </h6>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="video/*,.mp4,.mov,.webm,.mkv,.avi,.m4v"
+                className="d-none"
+                onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])}
+              />
+              <div
+                role="button"
+                onClick={() => canExecute && fileRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); if (canExecute) setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={onDrop}
+                className={`d-flex flex-column align-items-center justify-content-center text-center rounded p-4 ${dragOver ? "border-primary bg-primary-subtle" : "border-secondary-subtle text-muted"}`}
+                style={{
+                  border: "2px dashed",
+                  cursor: canExecute ? "pointer" : "not-allowed",
+                  minHeight: 130,
+                  transition: "background-color .12s, border-color .12s",
+                }}
+              >
+                {uploading ? (
+                  <>
+                    <div className="spinner-border text-primary mb-2" role="status" />
+                    <div className="small">Uploading &amp; extracting…</div>
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-cloud-arrow-up" style={{ fontSize: "2rem" }} />
+                    <div className="fw-medium mt-1">Drop a video here</div>
+                    <div className="small">or click to browse · mp4, mov, webm, mkv, avi</div>
+                  </>
+                )}
+              </div>
+              {!canExecute && (
+                <div className="form-text text-warning">You lack the execute permission for this module.</div>
+              )}
             </div>
           </div>
 
@@ -393,10 +498,17 @@ export default function InstagramAcquisition() {
                             {job.caption.length > 220 ? job.caption.slice(0, 220) + "…" : job.caption}
                           </div>
                         )}
-                        <a href={job.url} target="_blank" rel="noreferrer" className="small">
-                          <i className="bi bi-box-arrow-up-right me-1" />
-                          Open original
-                        </a>
+                        {job.url.startsWith("upload://") ? (
+                          <span className="small text-muted">
+                            <i className="bi bi-file-earmark-play me-1" />
+                            Uploaded video
+                          </span>
+                        ) : (
+                          <a href={job.url} target="_blank" rel="noreferrer" className="small">
+                            <i className="bi bi-box-arrow-up-right me-1" />
+                            Open original
+                          </a>
+                        )}
                       </div>
                     </div>
                     <div className="d-flex gap-2">
@@ -430,6 +542,39 @@ export default function InstagramAcquisition() {
                 </div>
               </div>
 
+              {job.duration > 0 && (
+                <div className="card border-0 shadow-sm mb-3">
+                  <div className="card-header bg-white fw-semibold">
+                    <i className="bi bi-play-btn me-2" style={{ color: "#d6249f" }} />
+                    Player
+                  </div>
+                  <div className="card-body d-flex justify-content-center" style={{ background: "#000", borderRadius: "0 0 .5rem .5rem" }}>
+                    <div
+                      style={{
+                        height: "min(70vh, 560px)",
+                        aspectRatio: "9 / 16",
+                        maxWidth: "100%",
+                        background: "#000",
+                        borderRadius: 18,
+                        overflow: "hidden",
+                        border: "3px solid #111",
+                      }}
+                    >
+                      <video
+                        key={job.id}
+                        src={`${BASE}/jobs/${job.id}/video?token=${getToken()}`}
+                        controls
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {ready && (
                 <div className="card border-0 shadow-sm mb-3">
                   <div className="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -448,6 +593,16 @@ export default function InstagramAcquisition() {
                           onChange={(e) => setTextOnly(e.target.checked)}
                         />
                         <label className="form-check-label small" htmlFor="textOnly">Text frames only</label>
+                      </div>
+                      <div className="form-check form-switch mb-0">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id="autoScroll"
+                          checked={autoScroll}
+                          onChange={(e) => setAutoScroll(e.target.checked)}
+                        />
+                        <label className="form-check-label small" htmlFor="autoScroll">Auto-scroll</label>
                       </div>
                       {canExecute && (
                         <button className="btn btn-outline-secondary btn-sm" disabled={analyzing} onClick={runAnalyze}>
@@ -469,7 +624,7 @@ export default function InstagramAcquisition() {
                       </button>
                     </div>
                   </div>
-                  <div className="card-body">
+                  <div className="card-body" ref={framesRef} style={{ maxHeight: 540, overflowY: "auto" }}>
                     {visibleFrames.length === 0 && (
                       <div className="text-muted small">
                         {frames.length === 0 ? "No frames extracted." : "No frames with detected text. Toggle the switch to view all frames."}
@@ -486,6 +641,17 @@ export default function InstagramAcquisition() {
                                 loading="lazy"
                                 alt={`Frame at ${fmtTime(f.timestamp)}`}
                               />
+                              <button
+                                className="btn btn-light btn-sm position-absolute"
+                                style={{ top: 6, left: 6, padding: "0 .3rem", lineHeight: 1.4, zIndex: 2 }}
+                                title="View full image"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPreview(`${BASE}/frames/${f.id}/image?token=${getToken()}`);
+                                }}
+                              >
+                                <i className="bi bi-arrows-fullscreen" style={{ fontSize: ".7rem" }} />
+                              </button>
                               {selected && <i className="bi bi-check-circle-fill qv-frame-check" />}
                               <span className="qv-frame-ts">{fmtTime(f.timestamp)}</span>
                             </div>
@@ -533,6 +699,29 @@ export default function InstagramAcquisition() {
           )}
         </div>
       </div>
+
+      {preview && (
+        <div
+          onClick={() => setPreview(null)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 2000,
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "zoom-out",
+          }}
+        >
+          <img
+            src={preview}
+            alt="Full frame"
+            style={{ maxWidth: "94vw", maxHeight: "94vh", objectFit: "contain", borderRadius: 8, boxShadow: "0 0 40px rgba(0,0,0,0.6)" }}
+          />
+          <button
+            className="btn btn-light position-absolute top-0 end-0 m-3"
+            onClick={(e) => { e.stopPropagation(); setPreview(null); }}
+            title="Close"
+          >
+            <i className="bi bi-x-lg" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
