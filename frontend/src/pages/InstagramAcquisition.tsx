@@ -248,6 +248,7 @@ export default function InstagramAcquisition() {
 
   const ready = job?.status === "ready";
   const textFrameCount = frames.filter((f) => (f.ocr_text ?? "").trim().length > 0).length;
+  const videoAvailable = !!job && !["pending", "queued", "downloading", "failed"].includes(job.status);
 
   return (
     <div>
@@ -370,14 +371,22 @@ export default function InstagramAcquisition() {
                 <div className="card-body">
                   <div className="d-flex justify-content-between align-items-start mb-3">
                     <div className="d-flex gap-3">
-                      {job.thumbnail_url && (
+                      {videoAvailable ? (
+                        <video
+                          key={job.id}
+                          controls
+                          poster={job.thumbnail_url || undefined}
+                          src={`${BASE}/jobs/${job.id}/video?token=${getToken()}`}
+                          style={{ width: 160, maxHeight: 280, borderRadius: 8, backgroundColor: "#000" }}
+                        />
+                      ) : job.thumbnail_url ? (
                         <img
                           src={job.thumbnail_url}
                           alt=""
                           style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }}
                           onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
                         />
-                      )}
+                      ) : null}
                       <div>
                         <div className="fw-semibold">
                           {job.author && <><i className="bi bi-person-circle me-1" />{job.author}</>}

@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import db_session, require_permission
+from app.config.settings import settings
 from app.api.schemas import (
     AnalyzeSummary,
     EstimateRequest,
@@ -149,6 +150,27 @@ def frame_image(
     if not path.exists():
         raise HTTPException(status_code=404, detail="Frame image missing")
     return FileResponse(str(path), media_type="image/jpeg")
+
+
+@router.get("/jobs/{job_id}/video")
+def job_video(
+    job_id: int,
+    token: str,
+    db: Session = Depends(db_session),
+):
+    try:
+        user_id = int(decode_access_token(token).get("sub"))
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user = UserRepository(db).get(user_id)
+    if not user or not user.has_permission(f"{MODULE}:view"):
+        raise HTTPException(status_code=403, detail="Not permitted")
+
+    job = _get(db, job_id)
+    path = settings.jobs_dir / str(job.id) / "video.mp4"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Video not found")
+    return FileResponse(str(path), media_type="video/mp4")
 
 
 @router.post("/jobs/{job_id}/ocr", response_model=list[QuestionOut])
