@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 
@@ -65,6 +67,28 @@ def create_job(
         raise HTTPException(status_code=400, detail="URL is required")
     options = ExtractionOptions.from_payload(payload)
     return ExtractionService(db).create_job(payload.url, user.id, source=SOURCE, extraction_options=options)
+
+
+_VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v", ".mpg", ".mpeg", ".ts", ".flv", ".gif"}
+
+
+@router.post("/upload", response_model=JobOut)
+async def upload_video(
+    file: UploadFile = File(...),
+    db: Session = Depends(db_session),
+    user: User = Depends(require_permission(f"{MODULE}:execute")),
+):
+    """Drag & drop a local video file → extract frames (reuses the full pipeline)."""
+    name = file.filename or ""
+    if Path(name).suffix.lower() not in _VIDEO_EXTS:
+        raise HTTPException(
+            status_code=400,
+            detail="Please drop a video file (mp4, mov, webm, mkv, avi, m4v, ...).",
+        )
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    return ExtractionService(db).create_upload_job(name, data, user.id, source=SOURCE)
 
 
 @router.post("/estimate", response_model=EstimateResponse)
@@ -158,6 +182,8 @@ def job_video(
     token: str,
     db: Session = Depends(db_session),
 ):
+    """Stream the acquired/uploaded video for in-panel playback (token in query
+    because a <video> element cannot send an Authorization header)."""
     try:
         user_id = int(decode_access_token(token).get("sub"))
     except Exception:
@@ -166,11 +192,12 @@ def job_video(
     if not user or not user.has_permission(f"{MODULE}:view"):
         raise HTTPException(status_code=403, detail="Not permitted")
 
-    job = _get(db, job_id)
-    path = settings.jobs_dir / str(job.id) / "video.mp4"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(str(path), media_type="video/mp4")
+    _get(db, job_id)
+    job_dir = settings.jobs_dir / str(job_id)
+    matches = sorted(job_dir.glob("video.*"))
+    if not matches:
+        raise HTTPException(status_code=404, detail="Video not available for this job")
+    return FileResponse(str(matches[0]), media_type="video/mp4")
 
 
 @router.post("/jobs/{job_id}/ocr", response_model=list[QuestionOut])

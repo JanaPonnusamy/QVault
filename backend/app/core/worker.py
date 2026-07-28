@@ -35,8 +35,24 @@ def _run_job(job_id: int) -> None:
 
         provider = get_provider(job.source)
 
-        _set(db, job, status="downloading", stage="Downloading video", progress=10)
-        info = provider.fetch(job.url, job_dir)
+        if job.url.startswith("upload://"):
+            # Locally uploaded video (drag & drop) — the file is already in the
+            # job dir; skip the download stage and probe the local file directly.
+            _set(db, job, status="downloading", stage="Preparing uploaded video", progress=10)
+            matches = sorted(job_dir.glob("video.*"))
+            if not matches:
+                raise FileNotFoundError("Uploaded video file not found for this job")
+            video_path = matches[0]
+            info = {
+                "title": job.title or job.url[len("upload://"):],
+                "video_id": "",
+                "duration": int(FFmpeg.probe_duration(str(video_path)) or 0),
+                "path": str(video_path),
+                "caption": "", "author": "", "upload_date": "", "thumbnail": "", "meta": {},
+            }
+        else:
+            _set(db, job, status="downloading", stage="Downloading video", progress=10)
+            info = provider.fetch(job.url, job_dir)
         _set(
             db, job,
             title=info["title"],
