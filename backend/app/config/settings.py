@@ -94,6 +94,21 @@ class Settings(BaseSettings):
         return self.storage_dir / "jobs"
 
     @property
+    def instagram_dir(self) -> Path:
+        return self.storage_dir / "instagram"
+
+    @property
+    def instagram_cookies_path(self) -> Path:
+        """Cookie jar managed by the in-app Instagram login (Instagram
+        Acquisition page) -- separate from `ytdlp_cookies_file` so logging in
+        for Instagram never touches YouTube's cookie configuration."""
+        return self.instagram_dir / "cookies.txt"
+
+    @property
+    def instagram_session_path(self) -> Path:
+        return self.instagram_dir / "session.json"
+
+    @property
     def ncert_dir(self) -> Path:
         return self.storage_dir / "ncert"
 
@@ -167,6 +182,7 @@ class Settings(BaseSettings):
 settings = Settings()
 settings.storage_dir.mkdir(parents=True, exist_ok=True)
 settings.jobs_dir.mkdir(parents=True, exist_ok=True)
+settings.instagram_dir.mkdir(parents=True, exist_ok=True)
 settings.ncert_dir.mkdir(parents=True, exist_ok=True)
 settings.documents_dir.mkdir(parents=True, exist_ok=True)
 settings.catalog_dir.mkdir(parents=True, exist_ok=True)

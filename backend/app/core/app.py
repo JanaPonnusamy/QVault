@@ -19,7 +19,7 @@ from app.api.routers import (
 from app.config.settings import settings
 from app.core.seed import seed
 from app.database.session import init_db
-from app.integrations.ytdlp import log_cookie_source
+from app.integrations.ytdlp import InstagramSession, log_cookie_source
 from app.services.health_service import get_health_status
 from app.shared.logging import configure_logging
 
@@ -29,6 +29,7 @@ def create_app() -> FastAPI:
     init_db()
     seed()
     log_cookie_source()
+    InstagramSession.ensure_seeded()
 
     app = FastAPI(title="QVault Admin API", version="0.1.0")
 

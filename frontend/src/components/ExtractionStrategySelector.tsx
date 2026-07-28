@@ -28,6 +28,7 @@ const STRATEGIES: { value: FrameExtractionStrategy; label: string; description: 
   { value: "scene_detection", label: "Scene Detection", description: "Extract when the visual scene changes (new slide, camera cut)." },
   { value: "ocr_text_change", label: "OCR Text Change", description: "Sample, OCR, and keep only frames whose text changed." },
   { value: "hybrid", label: "Hybrid (Recommended)", description: "Scene detection + OCR text-diff + quality filtering." },
+  { value: "all_frames", label: "All Frames", description: "No filtering — keep every decoded frame. Best for short clips." },
 ];
 
 export default function ExtractionStrategySelector({

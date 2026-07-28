@@ -61,6 +61,24 @@ class ExtractionService:
         worker.submit_job(job.id)
         return job
 
+    def create_queue(
+        self,
+        source_url: str,
+        user_id: int | None,
+        source: str,
+        limit: int,
+        extraction_options: ExtractionOptions | None = None,
+    ) -> list[ExtractionJob]:
+        """Auto-queue several acquisitions from one hashtag/profile URL --
+        lists the reel/post URLs (no download yet) then hands each one to
+        `create_job`, so every downstream stage (worker, extraction, OCR,
+        classification) is unchanged; this only replaces pasting URLs one at a
+        time."""
+        from app.integrations.ytdlp import InstagramQueue
+
+        urls = InstagramQueue.list_urls(source_url, limit)
+        return [self.create_job(url, user_id, source=source, extraction_options=extraction_options) for url in urls]
+
     def create_upload_job(
         self,
         filename: str,

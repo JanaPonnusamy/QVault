@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.services.frame_extraction_service import STRATEGIES
+
 VALID_SAMPLING_FPS = {None, 30.0, 15.0, 10.0, 5.0, 2.0, 1.0}
 
 
@@ -97,10 +99,17 @@ class JobCreate(BaseModel):
     @field_validator("strategy")
     @classmethod
     def _valid_strategy(cls, value: str) -> str:
-        allowed = {"fixed_interval", "scene_detection", "ocr_text_change", "hybrid"}
-        if value not in allowed:
-            raise ValueError(f"strategy must be one of {sorted(allowed)}")
+        if value not in STRATEGIES:
+            raise ValueError(f"strategy must be one of {sorted(STRATEGIES)}")
         return value
+
+
+class QueueCreate(JobCreate):
+    """Same extraction options as JobCreate, but `url` is a hashtag/profile
+    page to auto-queue several acquisitions from (e.g.
+    `https://www.instagram.com/explore/tags/<tag>/`)."""
+
+    limit: int = Field(default=10, ge=1, le=50)
 
     @field_validator("sampling_fps")
     @classmethod
@@ -180,6 +189,17 @@ class InstagramStats(BaseModel):
     processing: int = 0
     failed: int = 0
     frames: int = 0
+
+
+class InstagramLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class InstagramLoginStatus(BaseModel):
+    connected: bool = False
+    username: str | None = None
+    connected_at: str | None = None
 
 
 class QuestionOut(BaseModel):

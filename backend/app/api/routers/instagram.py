@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 
+import yt_dlp
+
 from app.api.deps import db_session, require_permission
 from app.config.settings import settings
 from app.api.schemas import (
@@ -11,13 +13,17 @@ from app.api.schemas import (
     EstimateRequest,
     EstimateResponse,
     FrameOut,
+    InstagramLoginRequest,
+    InstagramLoginStatus,
     InstagramStats,
     JobCreate,
     JobOut,
     OcrRequest,
+    QueueCreate,
     QuestionOut,
     QuestionUpdate,
 )
+from app.integrations.ytdlp import InstagramSession
 from app.models.rbac import User
 from app.repositories.user_repository import UserRepository
 from app.services.analysis_service import AnalysisService
@@ -57,6 +63,35 @@ def stats(
     )
 
 
+@router.get("/login", response_model=InstagramLoginStatus)
+def login_status(
+    _: object = Depends(require_permission(f"{MODULE}:view")),
+):
+    return InstagramSession.status()
+
+
+@router.post("/login", response_model=InstagramLoginStatus)
+def login(
+    payload: InstagramLoginRequest,
+    _: object = Depends(require_permission(f"{MODULE}:execute")),
+):
+    if not payload.username.strip() or not payload.password:
+        raise HTTPException(status_code=400, detail="Username and password are required")
+    try:
+        InstagramSession.login(payload.username.strip(), payload.password)
+    except yt_dlp.utils.DownloadError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return InstagramSession.status()
+
+
+@router.delete("/login")
+def logout(
+    _: object = Depends(require_permission(f"{MODULE}:execute")),
+):
+    InstagramSession.logout()
+    return {"status": "disconnected"}
+
+
 @router.post("/jobs", response_model=JobOut)
 def create_job(
     payload: JobCreate,
@@ -67,6 +102,26 @@ def create_job(
         raise HTTPException(status_code=400, detail="URL is required")
     options = ExtractionOptions.from_payload(payload)
     return ExtractionService(db).create_job(payload.url, user.id, source=SOURCE, extraction_options=options)
+
+
+@router.post("/queue", response_model=list[JobOut])
+def create_queue(
+    payload: QueueCreate,
+    db: Session = Depends(db_session),
+    user: User = Depends(require_permission(f"{MODULE}:execute")),
+):
+    if not payload.url.strip():
+        raise HTTPException(status_code=400, detail="Hashtag or profile URL is required")
+    options = ExtractionOptions.from_payload(payload)
+    try:
+        jobs = ExtractionService(db).create_queue(
+            payload.url, user.id, source=SOURCE, limit=payload.limit, extraction_options=options
+        )
+    except yt_dlp.utils.DownloadError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not jobs:
+        raise HTTPException(status_code=400, detail="No reels/posts found at that URL")
+    return jobs
 
 
 _VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v", ".mpg", ".mpeg", ".ts", ".flv", ".gif"}

@@ -60,10 +60,10 @@ class YtDlpProvider:
         self.classify_frames = classify_frames
 
     def fetch(self, ref: str, output_dir: Path) -> dict:
-        return YtDlp.download_video(ref, output_dir)
+        return YtDlp.download_video(ref, output_dir, source=self.name)
 
     def probe(self, ref: str) -> dict:
-        return YtDlp.probe_metadata(ref)
+        return YtDlp.probe_metadata(ref, source=self.name)
 
 
 _PROVIDERS: dict[str, VideoProvider] = {}

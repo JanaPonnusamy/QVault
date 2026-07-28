@@ -22,7 +22,7 @@ from app.integrations.ffmpeg import FFmpeg
 from app.integrations.frame_analysis import FrameAnalyzer
 from app.integrations.ocr import OCR
 
-STRATEGIES = ("fixed_interval", "scene_detection", "ocr_text_change", "hybrid")
+STRATEGIES = ("fixed_interval", "scene_detection", "ocr_text_change", "hybrid", "all_frames")
 DEFAULT_STRATEGY = "hybrid"
 
 _WS_RE = re.compile(r"\s+")
@@ -210,6 +210,17 @@ class OCRTextChangeStrategy(FrameExtractionStrategy):
             shutil.rmtree(sample_dir, ignore_errors=True)
 
 
+class AllFramesStrategy(FrameExtractionStrategy):
+    """No scene/text-diff filtering at all -- keeps every frame `sampling_fps`
+    decodes (None = every single decoded frame, matching the video's native
+    frame rate). The Advanced quality checkboxes (blank/blur/dedup/cap) still
+    apply afterward if the caller enables them; off by default this is a
+    literal "extract everything" strategy for short clips."""
+
+    def extract(self, video_path, frames_dir, options, duration):
+        return FFmpeg.extract_frames_sampled(video_path, frames_dir, options.sampling_fps)
+
+
 class HybridStrategy(FrameExtractionStrategy):
     """Recommended default: Frame Sampling feeds scene detection (which narrows
     candidates), OCR text-diff drops near-duplicate slides, and the shared
@@ -303,6 +314,7 @@ class FrameExtractionService:
         "scene_detection": SceneDetectionStrategy(),
         "ocr_text_change": OCRTextChangeStrategy(),
         "hybrid": HybridStrategy(),
+        "all_frames": AllFramesStrategy(),
     }
 
     def extract(

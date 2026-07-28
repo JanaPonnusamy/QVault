@@ -75,6 +75,24 @@ NEET_CONFIG = SyllabusParseConfig(
 )
 
 
+# Boilerplate injected by government e-office/DMS systems on every page
+# (file numbers, "Generated from eOffice by ..." stamps, attachment tags,
+# bare page numbers). Not specific to any one exam's syllabus content, so
+# it's filtered generically rather than via a per-exam config.
+_NOISE_LINE_PATTERNS = (
+    re.compile(r"^file\s*no\.?\s", re.IGNORECASE),
+    re.compile(r"generated from eoffice", re.IGNORECASE),
+    re.compile(r"^dfa/\d+", re.IGNORECASE),
+    re.compile(r"^\d+/\d+/[a-z0-9]", re.IGNORECASE),
+    re.compile(r"^\(computer no\.?\s*\d+\)", re.IGNORECASE),
+    re.compile(r"^\d+$"),
+)
+
+
+def _is_noise(line: str) -> bool:
+    return any(pattern.search(line) for pattern in _NOISE_LINE_PATTERNS)
+
+
 def _lines(pdf_path: Path) -> list[str]:
     doc = fitz.open(pdf_path)
     try:
@@ -82,7 +100,7 @@ def _lines(pdf_path: Path) -> list[str]:
         for page in doc:
             for raw in page.get_text("text").splitlines():
                 text = raw.strip()
-                if text:
+                if text and not _is_noise(text):
                     lines.append(text)
         return lines
     finally:

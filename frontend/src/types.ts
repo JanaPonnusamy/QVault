@@ -28,7 +28,7 @@ export interface CurrentUser extends User {
   permissions: string[];
 }
 
-export type FrameExtractionStrategy = "fixed_interval" | "scene_detection" | "ocr_text_change" | "hybrid";
+export type FrameExtractionStrategy = "fixed_interval" | "scene_detection" | "ocr_text_change" | "hybrid" | "all_frames";
 
 // null = "every decoded frame" (catches sub-300ms flash content).
 export type SamplingFps = 30 | 15 | 10 | 5 | 2 | 1 | null;
@@ -104,6 +104,12 @@ export interface InstagramStats {
   processing: number;
   failed: number;
   frames: number;
+}
+
+export interface InstagramLoginStatus {
+  connected: boolean;
+  username: string | null;
+  connected_at: string | null;
 }
 
 export interface NcertBook {

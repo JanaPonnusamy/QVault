@@ -1,3 +1,5 @@
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yt_dlp
@@ -12,15 +14,23 @@ class CookieSource:
     """Resolves QVault's yt-dlp cookie configuration once, so the options built
     for yt-dlp and what's logged at startup can never drift apart.
 
-    Precedence: a cookies file always wins over browser extraction over no
-    auth -- a configured file short-circuits the browser path entirely (the
-    browser branch is structurally unreachable once a file is set), and a
-    configured-but-missing file fails fast instead of silently downloading
-    with zero cookies (which previously surfaced hours later as a confusing
-    "empty media response" error with no clue why cookies weren't applied).
+    Precedence: for Instagram, the session saved by the in-app Instagram Login
+    (Instagram Acquisition page) always wins -- it's the account the admin just
+    signed into, and using a stale global file/browser cookie instead would be
+    surprising. Otherwise a configured cookies file wins over browser
+    extraction over no auth -- a configured file short-circuits the browser
+    path entirely (the browser branch is structurally unreachable once a file
+    is set), and a configured-but-missing file fails fast instead of silently
+    downloading with zero cookies (which previously surfaced hours later as a
+    confusing "empty media response" error with no clue why cookies weren't
+    applied).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, source: str | None = None) -> None:
+        if source == "instagram" and settings.instagram_cookies_path.is_file():
+            self.file = str(settings.instagram_cookies_path)
+            self.browser = None
+            return
         self.file = settings.ytdlp_cookies_file
         self.browser = settings.ytdlp_cookies_from_browser
         if self.file and not Path(self.file).is_file():
@@ -67,12 +77,12 @@ def log_cookie_source() -> None:
 
 class YtDlp:
     @staticmethod
-    def probe_metadata(url: str) -> dict:
+    def probe_metadata(url: str, source: str | None = None) -> dict:
         """Metadata-only probe (no download) -- used to estimate frame counts
         before a job runs. Falls back to zeros if the source can't be probed
         (estimate becomes advisory only; the job itself still runs normally)."""
         opts = {"quiet": True, "no_warnings": True, "noplaylist": True, "skip_download": True}
-        CookieSource().apply(opts)
+        CookieSource(source).apply(opts)
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -84,7 +94,7 @@ class YtDlp:
         }
 
     @staticmethod
-    def download_video(url: str, output_dir: Path) -> dict:
+    def download_video(url: str, output_dir: Path, source: str | None = None) -> dict:
         output_dir.mkdir(parents=True, exist_ok=True)
         opts = {
             "format": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
@@ -95,7 +105,8 @@ class YtDlp:
             "noplaylist": True,
             "restrictfilenames": True,
         }
-        CookieSource().apply(opts)
+        cookies = CookieSource(source)
+        cookies.apply(opts)
 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -110,14 +121,17 @@ class YtDlp:
                     "the 'Get cookies.txt LOCALLY' extension) and set QVAULT_YTDLP_COOKIES_FILE "
                     "to that file's path in config/.env."
                 ) from exc
-            if not (settings.ytdlp_cookies_file or settings.ytdlp_cookies_from_browser) and (
+            if not cookies.file and not cookies.browser and (
                 "empty media response" in message or "logged-in" in message
             ):
+                hint = (
+                    "Log in from the Instagram Acquisition page (Instagram Login card)."
+                    if source == "instagram"
+                    else "Set QVAULT_YTDLP_COOKIES_FILE (path to a cookies.txt) or "
+                    "QVAULT_YTDLP_COOKIES_FROM_BROWSER (e.g. 'chrome') in config/.env."
+                )
                 raise yt_dlp.utils.DownloadError(
-                    f"{exc}\n\nThis source requires an authenticated session. Set "
-                    "QVAULT_YTDLP_COOKIES_FILE (path to a cookies.txt) or "
-                    "QVAULT_YTDLP_COOKIES_FROM_BROWSER (e.g. 'chrome') in config/.env "
-                    "and retry."
+                    f"{exc}\n\nThis source requires an authenticated session. {hint} and retry."
                 ) from exc
             raise
 
@@ -142,3 +156,148 @@ class YtDlp:
             "thumbnail": info.get("thumbnail") or "",
             "meta": {k: info.get(k) for k in meta_keys if info.get(k) is not None},
         }
+
+
+class InstagramSession:
+    """The in-app "Instagram Login" (Instagram Acquisition page): signs in with
+    yt-dlp's native username/password auth against a stable public profile page,
+    which persists the resulting session cookies to
+    `settings.instagram_cookies_path`. `CookieSource` then picks that file up
+    automatically for every subsequent Instagram job -- no env var, no manual
+    cookies.txt export.
+
+    Instagram's anti-bot defenses make the username/password flow above fail
+    for many accounts regardless of whether the password is correct (a known
+    yt-dlp/Instagram issue, not a QVault bug). `ensure_seeded` and the
+    auto-adopt branch in `status` give a working fallback: a cookies.txt
+    exported from an already-logged-in browser (or the repo's bundled
+    `config/instagram_cookies.txt`) is auto-detected as the active session on
+    first use, with no in-app login step required.
+    """
+
+    _PROBE_URL = "https://www.instagram.com/instagram/"
+
+    @staticmethod
+    def ensure_seeded() -> None:
+        """Called once at app startup. If no session cookie jar exists yet but
+        a bundled/manually-dropped `config/instagram_cookies.txt` does, adopt
+        it as the initial Instagram session -- so a fresh checkout or a
+        manually exported cookies.txt "just works" without visiting the login
+        form first."""
+        if settings.instagram_cookies_path.is_file():
+            return
+        seed = settings.storage_dir.parent / "config" / "instagram_cookies.txt"
+        if not seed.is_file():
+            return
+        settings.instagram_dir.mkdir(parents=True, exist_ok=True)
+        settings.instagram_cookies_path.write_bytes(seed.read_bytes())
+        logger.info("Instagram: seeded session cookies from %s", seed)
+
+    @staticmethod
+    def _cookie_value(name: str) -> str | None:
+        path = settings.instagram_cookies_path
+        if not path.is_file():
+            return None
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if not line.strip() or line.startswith("#"):
+                continue
+            fields = line.split("\t")
+            if len(fields) >= 7 and fields[5] == name:
+                return fields[6]
+        return None
+
+    @staticmethod
+    def login(username: str, password: str) -> None:
+        settings.instagram_dir.mkdir(parents=True, exist_ok=True)
+        opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "skip_download": True,
+            "username": username,
+            "password": password,
+            "cookiefile": str(settings.instagram_cookies_path),
+        }
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                ydl.extract_info(InstagramSession._PROBE_URL, download=False)
+        except yt_dlp.utils.DownloadError as exc:
+            settings.instagram_cookies_path.unlink(missing_ok=True)
+            message = str(exc).lower()
+            if "checkpoint" in message or "challenge" in message or "two-factor" in message:
+                raise yt_dlp.utils.DownloadError(
+                    f"{exc}\n\nInstagram is asking for extra verification (checkpoint/2FA) that "
+                    "can't be completed here. Approve the login attempt in the Instagram app, "
+                    "then retry, or export cookies.txt via a browser extension instead."
+                ) from exc
+            raise
+
+        settings.instagram_session_path.write_text(
+            json.dumps({"username": username, "connected_at": datetime.now(timezone.utc).isoformat()}),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def status() -> dict:
+        if not settings.instagram_cookies_path.is_file():
+            return {"connected": False, "username": None, "connected_at": None}
+        if not settings.instagram_session_path.is_file():
+            # A cookies.txt exists (seeded at startup or dropped in manually)
+            # but the in-app login never ran -- auto-adopt it as the active
+            # session rather than showing "not connected" for a jar that
+            # actually works.
+            settings.instagram_session_path.write_text(
+                json.dumps({
+                    "username": InstagramSession._cookie_value("ds_user_id") or "seeded session",
+                    "connected_at": datetime.now(timezone.utc).isoformat(),
+                }),
+                encoding="utf-8",
+            )
+        try:
+            data = json.loads(settings.instagram_session_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return {"connected": False, "username": None, "connected_at": None}
+        return {
+            "connected": True,
+            "username": data.get("username"),
+            "connected_at": data.get("connected_at"),
+        }
+
+    @staticmethod
+    def logout() -> None:
+        settings.instagram_cookies_path.unlink(missing_ok=True)
+        settings.instagram_session_path.unlink(missing_ok=True)
+
+
+class InstagramQueue:
+    """Lists reel/post URLs from a hashtag or profile page (e.g.
+    `https://www.instagram.com/explore/tags/<tag>/` or
+    `https://www.instagram.com/<username>/`) so the Instagram Acquisition page
+    can auto-queue several acquisitions from one input instead of pasting URLs
+    one at a time. Uses `extract_flat` -- a listing only, no video download --
+    and the same Instagram session `CookieSource` already resolves for every
+    other Instagram request."""
+
+    @staticmethod
+    def list_urls(source_url: str, limit: int) -> list[str]:
+        limit = max(1, min(limit, 50))
+        opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": True,
+            "playlistend": limit,
+        }
+        CookieSource("instagram").apply(opts)
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(source_url, download=False)
+        entries = info.get("entries") if info.get("entries") is not None else [info]
+        urls: list[str] = []
+        for entry in entries:
+            if not entry:
+                continue
+            url = entry.get("url") or entry.get("webpage_url")
+            if url and url not in urls:
+                urls.append(url)
+            if len(urls) >= limit:
+                break
+        return urls

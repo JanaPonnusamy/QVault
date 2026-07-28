@@ -6,7 +6,7 @@ import ConfidenceBadge, { QuestionStatusBadge } from "../components/ConfidenceBa
 import ExtractionStrategySelector from "../components/ExtractionStrategySelector";
 import JobProgress, { StatusBadge } from "../components/JobProgress";
 import { DEFAULT_EXTRACTION_OPTIONS } from "../types";
-import type { ExtractionOptions, Frame, InstagramStats, Job, Question } from "../types";
+import type { ExtractionOptions, Frame, InstagramLoginStatus, InstagramStats, Job, Question } from "../types";
 
 const BASE = "/api/sources/instagram";
 
@@ -65,6 +65,16 @@ export default function InstagramAcquisition() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [login, setLogin] = useState<InstagramLoginStatus | null>(null);
+  const [feedIndex, setFeedIndex] = useState(0);
+  const [queueUrl, setQueueUrl] = useState("");
+  const [queueLimit, setQueueLimit] = useState(10);
+  const [queueBusy, setQueueBusy] = useState(false);
+  const [queueError, setQueueError] = useState("");
+  const [igUsername, setIgUsername] = useState("");
+  const [igPassword, setIgPassword] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [loginError, setLoginError] = useState("");
   const pollRef = useRef<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const framesRef = useRef<HTMLDivElement>(null);
@@ -92,9 +102,26 @@ export default function InstagramAcquisition() {
     setQuestions(q.data);
   }, []);
 
+  const loadLogin = useCallback(async () => {
+    const res = await api.get<InstagramLoginStatus>(`${BASE}/login`);
+    setLogin(res.data);
+  }, []);
+
   useEffect(() => {
     loadJobs().catch((e) => setError(apiError(e)));
-  }, [loadJobs]);
+    loadLogin().catch(() => {});
+  }, [loadJobs, loadLogin]);
+
+  const hasActiveJobs = jobs.some((j) =>
+    ["pending", "queued", "downloading", "extracting", "analyzing"].includes(j.status)
+  );
+  useEffect(() => {
+    if (!hasActiveJobs) return;
+    const id = window.setInterval(() => {
+      loadJobs().catch(() => {});
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, [hasActiveJobs, loadJobs]);
 
   useEffect(() => {
     if (pollRef.current) {
@@ -156,6 +183,22 @@ export default function InstagramAcquisition() {
     }
   }
 
+  async function submitQueue(e: React.FormEvent) {
+    e.preventDefault();
+    if (!queueUrl.trim()) return;
+    setQueueError("");
+    setQueueBusy(true);
+    try {
+      await api.post<Job[]>(`${BASE}/queue`, { url: queueUrl, limit: queueLimit, ...extractionOptions });
+      setQueueUrl("");
+      await loadJobs();
+    } catch (err) {
+      setQueueError(apiError(err));
+    } finally {
+      setQueueBusy(false);
+    }
+  }
+
   async function uploadFile(file: File) {
     if (!file) return;
     setError("");
@@ -171,6 +214,39 @@ export default function InstagramAcquisition() {
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function connectInstagram(e: React.FormEvent) {
+    e.preventDefault();
+    if (!igUsername.trim() || !igPassword) return;
+    setLoginBusy(true);
+    setLoginError("");
+    try {
+      const res = await api.post<InstagramLoginStatus>(`${BASE}/login`, {
+        username: igUsername,
+        password: igPassword,
+      });
+      setLogin(res.data);
+      setIgUsername("");
+      setIgPassword("");
+    } catch (err) {
+      setLoginError(apiError(err));
+    } finally {
+      setLoginBusy(false);
+    }
+  }
+
+  async function disconnectInstagram() {
+    setLoginBusy(true);
+    setLoginError("");
+    try {
+      await api.delete(`${BASE}/login`);
+      setLogin({ connected: false, username: null, connected_at: null });
+    } catch (err) {
+      setLoginError(apiError(err));
+    } finally {
+      setLoginBusy(false);
     }
   }
 
@@ -297,6 +373,15 @@ export default function InstagramAcquisition() {
   const textFrameCount = frames.filter((f) => (f.ocr_text ?? "").trim().length > 0).length;
   const videoAvailable = !!job && !["pending", "queued", "downloading", "failed"].includes(job.status);
 
+  const readyJobs = useMemo(() => jobs.filter((j) => j.status === "ready" && j.duration > 0), [jobs]);
+  useEffect(() => {
+    if (feedIndex >= readyJobs.length) setFeedIndex(0);
+  }, [readyJobs.length, feedIndex]);
+
+  function advanceFeed() {
+    setFeedIndex((i) => (readyJobs.length ? (i + 1) % readyJobs.length : 0));
+  }
+
   return (
     <div>
       <div className="d-flex align-items-center mb-3">
@@ -339,6 +424,75 @@ export default function InstagramAcquisition() {
 
       <div className="row g-3">
         <div className="col-12 col-lg-4">
+          <div className="card border-0 shadow-sm mb-3">
+            <div className="card-body">
+              <h6 className="fw-semibold mb-3 d-flex justify-content-between align-items-center">
+                <span>
+                  <i className="bi bi-person-badge me-2" style={{ color: "#d6249f" }} />
+                  Instagram Login
+                </span>
+                {login?.connected && (
+                  <span className="badge bg-success-subtle text-success">
+                    <i className="bi bi-check-circle me-1" />
+                    Connected
+                  </span>
+                )}
+              </h6>
+              {loginError && (
+                <div className="alert alert-danger py-1 px-2 small d-flex justify-content-between">
+                  <span>{loginError}</span>
+                  <button className="btn-close btn-sm" onClick={() => setLoginError("")} />
+                </div>
+              )}
+              {login?.connected ? (
+                <div className="d-flex justify-content-between align-items-center">
+                  <div className="small">
+                    <i className="bi bi-person-circle me-1" />
+                    {login.username}
+                  </div>
+                  <button
+                    className="btn btn-outline-danger btn-sm"
+                    disabled={loginBusy || !canExecute}
+                    onClick={disconnectInstagram}
+                  >
+                    {loginBusy ? "..." : "Disconnect"}
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={connectInstagram}>
+                  <input
+                    className="form-control form-control-sm mb-2"
+                    placeholder="Instagram username"
+                    value={igUsername}
+                    onChange={(e) => setIgUsername(e.target.value)}
+                    disabled={!canExecute || loginBusy}
+                    autoComplete="username"
+                  />
+                  <input
+                    className="form-control form-control-sm mb-2"
+                    placeholder="Password"
+                    type="password"
+                    value={igPassword}
+                    onChange={(e) => setIgPassword(e.target.value)}
+                    disabled={!canExecute || loginBusy}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    className="btn btn-sm w-100 text-white"
+                    style={{ backgroundColor: "#d6249f" }}
+                    disabled={!canExecute || loginBusy || !igUsername.trim() || !igPassword}
+                  >
+                    {loginBusy ? "Connecting..." : "Connect account"}
+                  </button>
+                  <div className="form-text">
+                    Needed for private/age-gated Reels &amp; Posts. Credentials are used once to
+                    sign in and are never stored.
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+
           <div className="card border-0 shadow-sm mb-3">
             <div className="card-body">
               <h6 className="fw-semibold mb-3">New acquisition</h6>
@@ -385,6 +539,59 @@ export default function InstagramAcquisition() {
                 {!canExecute && (
                   <div className="form-text text-warning">You lack the execute permission for this module.</div>
                 )}
+              </form>
+            </div>
+          </div>
+
+          <div className="card border-0 shadow-sm mb-3">
+            <div className="card-body">
+              <h6 className="fw-semibold mb-2">
+                <i className="bi bi-collection-play me-2" style={{ color: "#d6249f" }} />
+                Auto-queue from hashtag / profile
+              </h6>
+              {queueError && (
+                <div className="alert alert-danger py-1 px-2 small d-flex justify-content-between">
+                  <span>{queueError}</span>
+                  <button className="btn-close btn-sm" onClick={() => setQueueError("")} />
+                </div>
+              )}
+              <form onSubmit={submitQueue}>
+                <div className="input-group input-group-sm mb-2">
+                  <span className="input-group-text">
+                    <i className="bi bi-hash" />
+                  </span>
+                  <input
+                    className="form-control"
+                    placeholder="Hashtag or profile URL, e.g. instagram.com/explore/tags/..."
+                    value={queueUrl}
+                    onChange={(e) => setQueueUrl(e.target.value)}
+                    disabled={!canExecute || queueBusy}
+                  />
+                  <select
+                    className="form-select"
+                    style={{ maxWidth: 90 }}
+                    value={queueLimit}
+                    onChange={(e) => setQueueLimit(parseInt(e.target.value, 10))}
+                    disabled={!canExecute || queueBusy}
+                  >
+                    {[5, 10, 20, 30].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  className="btn btn-sm w-100 text-white"
+                  style={{ backgroundColor: "#d6249f" }}
+                  disabled={!canExecute || queueBusy || !queueUrl.trim()}
+                >
+                  {queueBusy ? "Queuing..." : "Queue reels"}
+                </button>
+                <div className="form-text">
+                  Lists up to {queueLimit} reels/posts from that page and downloads them in the
+                  background — they'll appear in the Reels feed as each one finishes.
+                </div>
               </form>
             </div>
           </div>
@@ -461,11 +668,70 @@ export default function InstagramAcquisition() {
         </div>
 
         <div className="col-12 col-lg-8">
-          {!job && (
+          {!job && readyJobs.length === 0 && (
             <div className="card border-0 shadow-sm">
               <div className="card-body text-center text-muted py-5">
                 <i className="bi bi-arrow-left-circle d-block mb-2" style={{ fontSize: "2rem" }} />
                 Paste an Instagram URL or select an acquisition to begin.
+              </div>
+            </div>
+          )}
+
+          {!job && readyJobs.length > 0 && (
+            <div className="card border-0 shadow-sm">
+              <div className="card-header bg-white d-flex justify-content-between align-items-center">
+                <span className="fw-semibold">
+                  <i className="bi bi-play-circle me-2" style={{ color: "#d6249f" }} />
+                  Reels feed
+                </span>
+                <span className="small text-muted">
+                  {feedIndex + 1} / {readyJobs.length}
+                </span>
+              </div>
+              <div className="card-body d-flex flex-column align-items-center" style={{ background: "#000", borderRadius: "0 0 .5rem .5rem" }}>
+                <div
+                  style={{
+                    maxWidth: "100%",
+                    borderRadius: 18,
+                    overflow: "hidden",
+                    border: "3px solid #111",
+                    lineHeight: 0,
+                  }}
+                >
+                  <video
+                    key={readyJobs[feedIndex]?.id}
+                    src={`${BASE}/jobs/${readyJobs[feedIndex]?.id}/video?token=${getToken()}`}
+                    autoPlay
+                    muted
+                    playsInline
+                    controls
+                    onEnded={advanceFeed}
+                    style={{ display: "block", width: "auto", height: "auto", maxWidth: "min(100%, 240px)", maxHeight: "min(45vh, 420px)" }}
+                  />
+                </div>
+                <div className="d-flex justify-content-between align-items-center w-100 mt-3 px-1">
+                  <div className="text-white-50 small text-truncate" style={{ maxWidth: 200 }}>
+                    <i className="bi bi-person-circle me-1" />
+                    {readyJobs[feedIndex]?.author || readyJobs[feedIndex]?.title || "—"}
+                  </div>
+                  <div className="btn-group btn-group-sm">
+                    <button
+                      className="btn btn-outline-light"
+                      onClick={() => setFeedIndex((i) => (i - 1 + readyJobs.length) % readyJobs.length)}
+                    >
+                      <i className="bi bi-skip-start-fill" />
+                    </button>
+                    <button className="btn btn-outline-light" onClick={advanceFeed}>
+                      <i className="bi bi-skip-end-fill" />
+                    </button>
+                    <button
+                      className="btn btn-outline-light"
+                      onClick={() => setSelectedId(readyJobs[feedIndex]?.id ?? null)}
+                    >
+                      Details
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -560,13 +826,11 @@ export default function InstagramAcquisition() {
                   <div className="card-body d-flex justify-content-center" style={{ background: "#000", borderRadius: "0 0 .5rem .5rem" }}>
                     <div
                       style={{
-                        height: "min(70vh, 560px)",
-                        aspectRatio: "9 / 16",
                         maxWidth: "100%",
-                        background: "#000",
                         borderRadius: 18,
                         overflow: "hidden",
                         border: "3px solid #111",
+                        lineHeight: 0,
                       }}
                     >
                       <video
@@ -577,7 +841,7 @@ export default function InstagramAcquisition() {
                         muted
                         loop
                         playsInline
-                        style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }}
+                        style={{ display: "block", width: "auto", height: "auto", maxWidth: "min(100%, 240px)", maxHeight: "min(45vh, 420px)" }}
                       />
                     </div>
                   </div>

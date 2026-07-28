@@ -15,19 +15,22 @@ def _slugify(text: str, max_len: int = 40) -> str:
     return (slug or "item")[:max_len]
 
 
-def _unique_code(title: str, used: set[str]) -> str:
+def _unique_code(title: str, used: set[str], max_len: int = 40) -> str:
     """Slugify title into a code unique within `used` (siblings under one parent).
 
     Two differently-worded siblings that happen to slugify identically must
     not collapse into a single row, so collisions get a numeric suffix.
     Deterministic given the same input order, so re-importing the same PDF
     reproduces the same codes (true idempotency, not just dedup-by-luck).
+    The numeric suffix is reserved for up front so `base + suffix` never
+    exceeds `max_len` (a truncated base plus suffix previously could).
     """
-    base = _slugify(title)
+    base = _slugify(title, max_len)
     code = base
     n = 2
     while code in used:
-        code = f"{base}_{n}"
+        suffix = f"_{n}"
+        code = base[: max_len - len(suffix)] + suffix
         n += 1
     used.add(code)
     return code
