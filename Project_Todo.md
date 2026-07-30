@@ -14,8 +14,17 @@ sprint finishes. Keep this file accurate after every sprint (see CLAUDE.md rule 
 - PDF acquisition source (reuse `acquisition_jobs` + acquisition worker)
 - Image acquisition source (reuse `acquisition_jobs` + acquisition worker)
 - OCR fallback for documents flagged `needs_ocr` (image-only PDFs)
-- Question extraction from extracted document structure (structured text → questions), referencing the Syllabus Catalog hierarchy
-- Question Bank module
+- Question Acquisition & Extraction Engine — Phase 2B+, on top of the Phase-2A framework (v0.12.0), the GK Scraper website provider (v0.13.0) and Phase-1 Question Repository (v0.11.0):
+  - GK Scraper: multi-site rotation (register several homepages) + a daily scheduler for incremental re-crawl (the `AcquisitionItem` idempotent-by-`(provider, source_id)` design already supports this — "re-run discover(), only new/changed items move" — no schema change needed, just a scheduler)
+  - GK Scraper: more `KNOWN_PLUGINS` fingerprints as real GK sites are inspected (only GKToday's `wp-quiz-basic` has a deterministic parser today; others use the slower/costlier AI fallback)
+  - GK Scraper: PDF-derived MCQ/essay generation (PDFs found during a scan are currently only queued into the Documents pipeline, not further mined into questions)
+  - other providers on the same framework: NCERT (reusing `integrations/ncert_scraper.py`/`ncert_downloader.py`), NTA PDFs, generic PDF/GitHub/YouTube/Archive.org
+  - a concrete `DocumentParser` for PDFs (likely reusing `integrations/pdf_extractor.py`'s deterministic extraction), then deterministic question splitter + answer-key importer (AI fallback only on parse failure)
+  - solution/explanation extractor (official/coaching/ai_generated/community/video, kept separate per `bank_question_solutions.source_type`)
+  - semantic topic-mapping fallback when deterministic matching fails (populates `bank_questions.keywords`)
+  - image/figure downloader into `bank_question_images` (compute `sha256_hash`/`phash`)
+  - richer duplicate detection (option similarity, image hash, cross-year) on top of the existing normalized-text hash
+  - review & validation UI for low-confidence/duplicate/missing-answer questions (surface `bank_question_lineage`; GK Scraper already flags AI-assisted extractions as `pending_review`)
 - Question Validation module
 - Question Classification module
 - Knowledge Graph module
@@ -29,7 +38,56 @@ sprint finishes. Keep this file accurate after every sprint (see CLAUDE.md rule 
 
 - _(none)_
 
+## COMPLETED (pending doc sync)
+
+### Knowledge Intake â€” Education Knowledge Acquisition (v0.14.0)
+- New `/education` admin module + `education_acquisition` RBAC, built on the shared acquisition framework (`acquisition_jobs` + `AcquisitionItem`) rather than a parallel scraper
+- Configurable public-web discovery providers: Google/Bing/DuckDuckGo queries, manual URLs, sitemap, same-domain crawl, RSS, government portals, PDF discovery, and generic document discovery; no auth/CAPTCHA bypass
+- Deterministic HTML/PDF/DOCX/image/XML/TXT parsing into normalized `education_sources` / `education_documents` / `education_fields` / `education_tags` data, with canonical field normalization for school/ERP-style forms
+- Downloadable exports added: JSON, CSV, Markdown, and SQLite under `storage/education/exports/`; frontend dashboard page includes scan configuration, job polling, document inspection, and export actions
+- Verified on the SQLite path: backend imports cleanly (`QVAULT_DB_BACKEND=sqlite`), frontend `npm.cmd run build` passes, focused backend tests (`tests/test_education_acquisition.py`) pass
+
+### Maintenance — GK Scraper: full-site single-run scrape + solution-gap fix (v0.13.x)
+- Removed the `gk_scraper_batch_size` (200-page) cap that forced repeated "Start Scan" clicks — one run now fetches/parses every discovered page in the pool (`gk_scraper_pool_size`, 5000); `AcquisitionItem`'s idempotent discovered/retry state still makes a re-run cheap (only new/failed pages)
+- Root-caused why some scraped MCQs had no solution: `gk_http.post_form` (used to replay the `wp_basic_quiz` plugin's AJAX "reveal answer" call) sent no `Referer`/`X-Requested-With` header, so some quiz-plugin/WAF combinations silently returned no usable answer data; added those headers + a one-shot retry
+- Any MCQ/fill-blank saved without both a correct answer and a solution is now flagged `pending_review` (previously silently saved as `draft`, hiding the gap) — surfaces in the existing Question Bank review queue instead of masquerading as complete; profile.md now reports a "saved without a full answer+solution" count per scan
+- New `/api/sources/gk-scraper/profiles/{domain}/urls` (paginated, filterable by status) reusing the existing `AcquisitionItem` table as the scraped/visited-URL ledger — no new table (already had provider/source_url/status/document_type/error/timestamps, one row per (provider, source_id)); new "Scraped & Visited URLs" table on the GK Scraper admin page
+- Backend imports cleanly (136 routes); frontend `tsc && vite build` clean
+
 ## COMPLETED
+
+### Question Engine Phase 2A — GK Scraper, first concrete provider (v0.13.0)
+- First real implementation of the Phase 2A framework (v0.12.0): given only a homepage URL, discovers pages (sitemap.xml/sitemap_index.xml first, robots.txt-respecting same-domain crawl fallback — `integrations/gk_site_analyzer.py`), classifies each deterministically as mcq/essay/fill_blank/pdf (`KNOWN_PLUGINS` fingerprint registry + generic heuristics), and extracts structured content (`integrations/gk_extractors.py`)
+- Deterministic-first, AI-fallback-only: GKToday's live `wp-quiz-basic` plugin was reverse-engineered — it renders question/options in static HTML but hides the correct answer behind a hidden AJAX submit call, which the parser now simulates to recover the real answer/explanation. Any page that doesn't match a known plugin/pattern falls back to the existing provider-abstracted `LLMService` to structure the content — never to invent it. Two scope decisions taken with the user up front: Phase 1 is one homepage per run (no daily scheduler yet), and AI is a fallback only, never the default
+- `integrations/acquisition/providers/gk_website.py` (`GkWebsiteProvider`) + `gk_website_parser.py` (`GkWebsiteParser`) are the first concrete classes against the Phase 2A `AcquisitionProvider`/`DocumentParser` contracts; `services/gk_scraper_service.py` orchestrates discover → `AcquisitionQueueService` (idempotent `AcquisitionItem` state) → fetch → parse → save
+- Writes into the existing Question Bank (`exam="General Knowledge"`, **no schema change** — reused `BankSource`/`BankQuestion` exactly as designed for this in Phase 1) instead of a new "source master" table, since one already existed; PDFs found during a scan are routed into the existing Documents extraction pipeline via a new `KnowledgeService.ingest_external()` (no second PDF pipeline)
+- New `job_type="gk_website_scrape"` on the existing acquisition worker (no new worker); `/api/sources/gk-scraper/*` API (`scan`/`jobs`/`profiles`) + `gk_scraper` RBAC module (view/execute); `GkScraper` admin page (homepage URL + Start Scan, job progress via the reused `JobProgress`, markdown site-profile viewer)
+- New dependency: `beautifulsoup4` (generic HTML parsing/link discovery — the existing regex-only NCERT parser doesn't generalize to arbitrary unknown sites)
+- Live-verified end-to-end via `TestClient` against the **real** gktoday.in (not mocked): sitemap discovery found 40 real pages; 10 MCQ pages correctly parsed via the deterministic plugin path with real recovered answers/explanations (spot-checked correct); 29 essay pages; 1 transient fetch error; 128 real questions written to the Question Bank; `profile.md` generated per site and served over the API; `AcquisitionItem` rows correctly tracked through the full `discovered→downloading→downloaded→parsed→completed` state machine
+- Found and fixed a real bug during the live run: provider name (`gk:<domain>`) and raw-URL source_id both contained `:`/`/`, which are invalid in Windows file paths (`AcquisitionStorage` uses them as path segments) — fixed to `gk_<domain>` + a SHA-256 source_id
+- Backend imports cleanly (139 routes); frontend `tsc && vite build` clean. All test data (questions, sources, acquisition items/jobs, notifications, storage files) removed from the dev DB/disk after verification — confirmed empty afterward
+
+### Question Engine Phase 2A — Question Acquisition Framework (v0.12.0)
+- Settled the provider interface, common DTO, queue state machine and parser contract before writing any crawler — see [docs/adr/0001-question-acquisition-framework.md](docs/adr/0001-question-acquisition-framework.md)
+- `integrations/acquisition/dto.py`: `AcquisitionDocument` (provider/source_id/source_url/document_type/language/checksum/metadata/local_file/discovered_at, `validate()`/`is_valid`) and `JobSpec` (plain job_type/source/payload — never an ORM object, keeps `integrations/` DB-free)
+- `integrations/acquisition/provider.py`: `AcquisitionProvider` ABC (`discover`/`fetch`/`validate`/`extract_metadata`/`create_job`/`health`) + `register`/`get_provider`/`list_providers` registry — mirrors the existing `video_providers.py` dependency-injection pattern; a new provider is one class + one `register()` call, no other file changes
+- `integrations/acquisition/parser.py`: `DocumentParser` Protocol + `ParsedDocument` — contract only, **no concrete parser yet**
+- `integrations/acquisition/storage.py`: `AcquisitionStorage` — deterministic `storage/acquisition/<provider>/<exam>/<year>/<source_id>/original_file`+`metadata.json`, download-only
+- New generic `acquisition.acquisition_items` table (`AcquisitionItem`, schema-qualified like `catalog`/`question`): discovered→downloading→downloaded→parsed→completed state machine, unique `(provider, source_id)` for idempotent re-discovery, retry (`mark_failed` queues a retry until `max_retries`, then fails permanently), checkpoint recovery (`recover_stuck` requeues items left mid-download after a crash) — the generalized version of the existing `NcertBook` item-registry pattern, shared by every future provider instead of reinvented per-source
+- `AcquisitionQueueService` is the **only** thing that writes an `AcquisitionItem` — providers never touch the database, matching the phase's "no database writes yet" scope for the provider layer
+- Explicitly did **not** build (deferred to Phase 2B/2C): web crawler, OCR, question splitter, topic matcher, AI extraction, duplicate detection beyond Phase 1's existing hash check, answer extraction, solution extraction
+- 29 new offline tests (`tests/test_acquisition_framework.py`) against mock providers + an isolated in-memory SQLite engine (never the real dev DB): DTO validation, registry/DI, checksum determinism, parser contract typing, deterministic storage paths (+ actual file/metadata.json write verified), full queue lifecycle, idempotent re-discovery, retry-to-permanent-failure, checkpoint recovery. Full backend suite 133/134 (1 pre-existing unrelated failure — a video frame-extraction test out of sync with concurrent work already in this working tree)
+- No new router/UI/RBAC module — framework only, nothing user-facing yet
+
+### Question Engine Phase 1 — Question Repository (v0.11.0)
+- New `question.bank_sources` (never overwritten — `first_seen`/`last_seen`/`crawl_count`/`checksum` accumulate acquisition history across re-crawls), `question.bank_questions` (GUID-keyed exam question bank: exam/year/session/shift, normalized-text SHA-256 dedup, `current_stage`), `question.bank_question_topics` (**many-to-many** subject/unit/chapter/topic mapping + `is_primary` — never a single `topic_id` column), `question.bank_question_options`, `question.bank_question_solutions` (**one-to-many** — official/coaching/ai_generated/community/video solutions coexist), `question.bank_question_images` (`sha256_hash`+`phash` ready for Phase 2), `question.bank_question_lineage` (append-only acquired→ocr→parsed→human_corrected→published) — mapped directly onto the existing Syllabus Catalog (`catalog.exam/subject/unit/chapter/topic`, v0.10.0) instead of a parallel hierarchy; distinct from the frame-derived `questions` table (no collision)
+- Deterministic normalized-text SHA-256 duplicate detection; no AI — later-phase layer on top. Every create/edit/status-change auto-logs a `bank_question_lineage` row and updates `current_stage`
+- `/api/question-bank/*` full CRUD + stats + sources + lineage + approve/reject; `question_bank` RBAC module seeded
+- `QuestionBank` admin page (stats, cascading Exam→Subject→Unit→Chapter→Topic filters + picker reading `/api/catalog/*`, paginated list, add/edit modal with dynamic MCQ/MSQ options + multi-topic-mapping UI with a primary marker, approve/reject, duplicate badge); flipped from placeholder to live in `modules.ts`
+- Verified end-to-end over HTTP against seeded catalog rows: create with topic mapping + options + solution + source → dedup (punctuation/whitespace-only diff correctly flagged `duplicate_score=1.0`) → repeat-source crawl incremented `crawl_count` instead of duplicating the source → filter by `topic_id` (join through the junction table) → edit → `current_stage=human_corrected` → approve → `current_stage=published`; lineage `[acquired, human_corrected, published]` and stats all correct. Backend 136 routes; frontend `tsc && vite build` clean
+- **Course correction mid-session:** first built on a stale `main` checkout, duplicating the syllabus hierarchy that already existed on `develop` (the actual working branch — see Known Issues in the master doc). Caught via `git log --all` before commit; discarded and rebuilt correctly against `develop`'s `catalog.*` tables
+- **Not visually verified in a browser** — no browser automation tool was available in this environment; verified via HTTP API flow + clean TS build only. Click through `/question-bank` manually before relying on the UI.
+- This is Phase 1 of the Question Acquisition & Extraction Engine (repository only) — no acquisition/extraction/review-queue yet; see BACKLOG for Phase 2+
 
 ### Phase 3 (Syllabus Catalog) — Official Exam Syllabus Catalog Foundation (v0.10.0)
 - Generic multi-tenant `catalog.exam/subject/unit/chapter/topic` hierarchy (GUID PKs, `TenantAuditMixin`: tenant_id/created_on/created_by/modified_on/modified_by/is_deleted) — exam-agnostic by design, no NEET-specific logic in the schema

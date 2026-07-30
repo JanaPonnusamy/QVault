@@ -6,11 +6,14 @@ from app.api.routers import (
     catalog,
     content,
     documents,
+    education,
     extractor,
     instagram,
+    gk_scraper,
     knowledge,
     ncert,
     notifications,
+    question_bank,
     research,
     roles,
     users,
@@ -54,6 +57,9 @@ def create_app() -> FastAPI:
     app.include_router(research.router)
     app.include_router(videos.router)
     app.include_router(catalog.router)
+    app.include_router(question_bank.router)
+    app.include_router(gk_scraper.router)
+    app.include_router(education.router)
 
     @app.get("/api/health", tags=["system"])
     def health():

@@ -164,6 +164,97 @@ export interface AcquisitionJob {
   updated_at: string;
 }
 
+export interface GkProfile {
+  domain: string;
+  content: string;
+  updated_at: string;
+}
+
+export interface GkVisitedUrl {
+  id: number;
+  source_url: string;
+  document_type: string;
+  status: string;
+  error: string;
+  discovered_at: string;
+  updated_at: string;
+}
+
+export interface GkVisitedUrlList {
+  total: number;
+  items: GkVisitedUrl[];
+}
+
+export interface EducationStats {
+  sources: number;
+  documents: number;
+  fields: number;
+  forms: number;
+}
+
+export interface EducationSource {
+  id: string;
+  source_key: string;
+  institution_name: string;
+  institution_type: string;
+  board: string;
+  state: string;
+  district: string;
+  website_url: string;
+  source_kind: string;
+  is_government: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EducationSourceList {
+  items: EducationSource[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface EducationDocument {
+  id: string;
+  source_id: string | null;
+  acquisition_item_id: number | null;
+  url: string;
+  title: string;
+  document_type: string;
+  classification: string;
+  file_type: string;
+  checksum: string;
+  local_file: string;
+  language: string;
+  summary: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EducationField {
+  id: number;
+  canonical_key: string;
+  label: string;
+  value: string;
+  value_type: string;
+  source_kind: string;
+  confidence: number;
+  order_index: number;
+}
+
+export interface EducationDocumentDetail extends EducationDocument {
+  fields: EducationField[];
+  tags: string[];
+  source: EducationSource | null;
+}
+
+export interface EducationDocumentList {
+  items: EducationDocument[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface DocItem {
   id: number;
   source: string;
@@ -473,4 +564,135 @@ export interface SyllabusImportLogOut {
   error: string;
   started_at: string;
   finished_at: string | null;
+}
+
+// ---------- Question Bank ----------
+
+export const QUESTION_TYPES = [
+  "mcq", "msq", "nat", "numerical", "assertion_reason",
+  "match_following", "matrix_match", "paragraph",
+  "essay", "fill_blank",
+] as const;
+export type QuestionType = (typeof QUESTION_TYPES)[number];
+
+export const QUESTION_STATUSES = ["draft", "pending_review", "approved", "rejected", "duplicate"] as const;
+export type QuestionStatus = (typeof QUESTION_STATUSES)[number];
+
+export interface BankQuestionTopic {
+  id: number;
+  subject_id: string | null;
+  unit_id: string | null;
+  chapter_id: string | null;
+  topic_id: string | null;
+  is_primary: boolean;
+}
+
+export interface BankQuestionOption {
+  id: number;
+  label: string;
+  text: string;
+  image_path: string;
+  is_correct: boolean;
+  order_index: number;
+}
+
+export interface BankQuestionSolution {
+  id: number;
+  solution_text: string;
+  explanation: string;
+  source_type: string;
+  source_url: string;
+  confidence: number;
+  created_at: string;
+}
+
+export interface BankQuestionImage {
+  id: number;
+  image_path: string;
+  image_type: string;
+  caption: string;
+  sha256_hash: string;
+  phash: string;
+}
+
+export interface BankQuestionLineage {
+  id: number;
+  stage: string;
+  detail: string;
+  created_by: number | null;
+  created_at: string;
+}
+
+export interface BankSource {
+  id: string;
+  provider: string;
+  website: string;
+  url: string;
+  exam: string;
+  year: number | null;
+  shift: string;
+  language: string;
+  license: string;
+  checksum: string;
+  first_seen: string;
+  last_seen: string;
+  crawl_count: number;
+  last_status: string;
+}
+
+export interface BankQuestion {
+  id: string;
+  exam: string;
+  exam_id: string | null;
+  year: number | null;
+  session: string;
+  shift: string;
+  difficulty: string;
+  question_type: string;
+  question_text: string;
+  language: string;
+  correct_answer_text: string;
+  image_exists: boolean;
+  image_path: string;
+  status: string;
+  current_stage: string;
+  review_reason: string;
+  confidence: number;
+  duplicate_score: number;
+  source_id: string | null;
+  created_on: string;
+  modified_on: string;
+}
+
+export interface BankQuestionDetail extends BankQuestion {
+  answer_data: string;
+  question_hash: string;
+  normalized_text: string;
+  topics: BankQuestionTopic[];
+  options: BankQuestionOption[];
+  solutions: BankQuestionSolution[];
+  images: BankQuestionImage[];
+  lineage: BankQuestionLineage[];
+  source: BankSource | null;
+}
+
+export interface BankQuestionList {
+  items: BankQuestion[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface BankQuestionStats {
+  total: number;
+  draft: number;
+  pending_review: number;
+  approved: number;
+  rejected: number;
+  duplicate: number;
+  with_solution: number;
+  with_image: number;
+  needs_review: number;
+  sources: number;
+  by_type: Record<string, number>;
 }

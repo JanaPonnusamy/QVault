@@ -374,12 +374,60 @@ export default function InstagramAcquisition() {
   const videoAvailable = !!job && !["pending", "queued", "downloading", "failed"].includes(job.status);
 
   const readyJobs = useMemo(() => jobs.filter((j) => j.status === "ready" && j.duration > 0), [jobs]);
-  useEffect(() => {
-    if (feedIndex >= readyJobs.length) setFeedIndex(0);
-  }, [readyJobs.length, feedIndex]);
 
-  function advanceFeed() {
-    setFeedIndex((i) => (readyJobs.length ? (i + 1) % readyJobs.length : 0));
+  // Feed order is shuffled, not insertion order -- re-shuffles only when the
+  // *set* of ready videos actually changes (a new one finishes downloading)
+  // or the user hits "Shuffle", never on every poll tick, so a video you're
+  // mid-watching never jumps around under you.
+  const [shuffleSeed, setShuffleSeed] = useState(0);
+  const readyIds = readyJobs.map((j) => j.id).join(",");
+  const feedJobs = useMemo(() => {
+    const arr = [...readyJobs];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readyIds, shuffleSeed]);
+
+  useEffect(() => {
+    if (feedIndex >= feedJobs.length) setFeedIndex(0);
+  }, [feedJobs.length, feedIndex]);
+
+  // Mobile-Reels-style feed: a scroll-snap column of full-height videos.
+  // An IntersectionObserver plays whichever video is actually on screen and
+  // pauses the rest, so scrolling/swiping (not button clicks) drives playback
+  // -- the same interaction model as the Instagram/TikTok app.
+  const feedContainerRef = useRef<HTMLDivElement | null>(null);
+  const feedVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+
+  useEffect(() => {
+    if (job || feedJobs.length === 0) return;
+    const container = feedContainerRef.current;
+    if (!container) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const video = entry.target as HTMLVideoElement;
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+            video.play().catch(() => {});
+            const idx = Number(video.dataset.index);
+            if (!Number.isNaN(idx)) setFeedIndex(idx);
+          } else {
+            video.pause();
+          }
+        }
+      },
+      { root: container, threshold: [0, 0.6, 1] }
+    );
+    feedVideoRefs.current.forEach((v) => v && observer.observe(v));
+    return () => observer.disconnect();
+  }, [job, feedJobs.length]);
+
+  function scrollToFeedIndex(i: number) {
+    feedVideoRefs.current[i]?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   return (
@@ -643,7 +691,15 @@ export default function InstagramAcquisition() {
           </div>
 
           <div className="card border-0 shadow-sm">
-            <div className="card-header bg-white fw-semibold">Acquisitions</div>
+            <div className="card-header bg-white d-flex justify-content-between align-items-center">
+              <span className="fw-semibold">Acquisitions</span>
+              {selectedId !== null && readyJobs.length > 0 && (
+                <button className="btn btn-sm btn-outline-secondary" onClick={() => setSelectedId(null)}>
+                  <i className="bi bi-play-circle me-1" style={{ color: "#d6249f" }} />
+                  Reels Feed
+                </button>
+              )}
+            </div>
             <div className="list-group list-group-flush" style={{ maxHeight: 460, overflowY: "auto" }}>
               {jobs.length === 0 && <div className="p-3 text-muted small">No acquisitions yet.</div>}
               {jobs.map((j) => (
@@ -684,53 +740,98 @@ export default function InstagramAcquisition() {
                   <i className="bi bi-play-circle me-2" style={{ color: "#d6249f" }} />
                   Reels feed
                 </span>
-                <span className="small text-muted">
-                  {feedIndex + 1} / {readyJobs.length}
-                </span>
+                <div className="d-flex align-items-center gap-2">
+                  <span className="small text-muted">
+                    {feedIndex + 1} / {feedJobs.length} · scroll to browse
+                  </span>
+                  <button
+                    className="btn btn-sm btn-outline-secondary"
+                    title="Shuffle feed order"
+                    onClick={() => setShuffleSeed((s) => s + 1)}
+                  >
+                    <i className="bi bi-shuffle" />
+                  </button>
+                </div>
               </div>
-              <div className="card-body d-flex flex-column align-items-center" style={{ background: "#000", borderRadius: "0 0 .5rem .5rem" }}>
+              <div className="card-body d-flex justify-content-center" style={{ background: "#000", borderRadius: "0 0 .5rem .5rem", padding: 0 }}>
                 <div
+                  ref={feedContainerRef}
                   style={{
-                    maxWidth: "100%",
-                    borderRadius: 18,
-                    overflow: "hidden",
-                    border: "3px solid #111",
-                    lineHeight: 0,
+                    width: "min(100%, 380px)",
+                    height: "75vh",
+                    maxHeight: 720,
+                    overflowY: "auto",
+                    scrollSnapType: "y mandatory",
+                    scrollbarWidth: "none",
                   }}
                 >
-                  <video
-                    key={readyJobs[feedIndex]?.id}
-                    src={`${BASE}/jobs/${readyJobs[feedIndex]?.id}/video?token=${getToken()}`}
-                    autoPlay
-                    muted
-                    playsInline
-                    controls
-                    onEnded={advanceFeed}
-                    style={{ display: "block", width: "auto", height: "auto", maxWidth: "min(100%, 240px)", maxHeight: "min(45vh, 420px)" }}
-                  />
-                </div>
-                <div className="d-flex justify-content-between align-items-center w-100 mt-3 px-1">
-                  <div className="text-white-50 small text-truncate" style={{ maxWidth: 200 }}>
-                    <i className="bi bi-person-circle me-1" />
-                    {readyJobs[feedIndex]?.author || readyJobs[feedIndex]?.title || "—"}
-                  </div>
-                  <div className="btn-group btn-group-sm">
-                    <button
-                      className="btn btn-outline-light"
-                      onClick={() => setFeedIndex((i) => (i - 1 + readyJobs.length) % readyJobs.length)}
+                  {feedJobs.map((rj, i) => (
+                    <div
+                      key={rj.id}
+                      style={{
+                        position: "relative",
+                        width: "100%",
+                        height: "100%",
+                        scrollSnapAlign: "start",
+                        scrollSnapStop: "always",
+                        background: "#000",
+                      }}
                     >
-                      <i className="bi bi-skip-start-fill" />
-                    </button>
-                    <button className="btn btn-outline-light" onClick={advanceFeed}>
-                      <i className="bi bi-skip-end-fill" />
-                    </button>
-                    <button
-                      className="btn btn-outline-light"
-                      onClick={() => setSelectedId(readyJobs[feedIndex]?.id ?? null)}
-                    >
-                      Details
-                    </button>
-                  </div>
+                      <video
+                        ref={(el) => { feedVideoRefs.current[i] = el; }}
+                        data-index={i}
+                        src={`${BASE}/jobs/${rj.id}/video?token=${getToken()}`}
+                        muted
+                        loop
+                        playsInline
+                        onClick={(e) => {
+                          const v = e.currentTarget;
+                          if (v.paused) v.play().catch(() => {});
+                          else v.pause();
+                        }}
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          cursor: "pointer",
+                        }}
+                      />
+                      <div
+                        className="position-absolute bottom-0 start-0 w-100 p-3 text-white"
+                        style={{ background: "linear-gradient(transparent, rgba(0,0,0,.75))", pointerEvents: "none" }}
+                      >
+                        <div className="fw-semibold text-truncate">
+                          <i className="bi bi-person-circle me-1" />
+                          {rj.author || rj.title || "—"}
+                        </div>
+                      </div>
+                      <button
+                        className="btn btn-sm btn-outline-light position-absolute top-0 end-0 m-2"
+                        style={{ opacity: 0.85 }}
+                        onClick={() => setSelectedId(rj.id)}
+                      >
+                        Details
+                      </button>
+                      <div className="position-absolute d-flex flex-column gap-2" style={{ right: 8, bottom: 70 }}>
+                        <button
+                          className="btn btn-sm btn-outline-light"
+                          disabled={i === 0}
+                          onClick={() => scrollToFeedIndex(i - 1)}
+                        >
+                          <i className="bi bi-chevron-up" />
+                        </button>
+                        <button
+                          className="btn btn-sm btn-outline-light"
+                          disabled={i === feedJobs.length - 1}
+                          onClick={() => scrollToFeedIndex(i + 1)}
+                        >
+                          <i className="bi bi-chevron-down" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

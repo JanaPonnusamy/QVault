@@ -5,12 +5,15 @@ import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Documents from "./pages/Documents";
 import DocumentViewer from "./pages/DocumentViewer";
+import EducationAcquisition from "./pages/EducationAcquisition";
+import GkScraper from "./pages/GkScraper";
 import InstagramAcquisition from "./pages/InstagramAcquisition";
 import Knowledge from "./pages/Knowledge";
 import KnowledgeResearchHistoryPage from "./pages/KnowledgeResearchHistoryPage";
 import KnowledgeResearchPage from "./pages/KnowledgeResearchPage";
 import Login from "./pages/Login";
 import Ncert from "./pages/Ncert";
+import QuestionBank from "./pages/QuestionBank";
 import Review from "./pages/Review";
 import Roles from "./pages/Roles";
 import SyllabusCatalog from "./pages/SyllabusCatalog";
@@ -48,6 +51,8 @@ export default function App() {
         <Route path="/instagram" element={<InstagramAcquisition />} />
         <Route path="/review/:jobId" element={<Review />} />
         <Route path="/ncert" element={<Ncert />} />
+        <Route path="/gk-scraper" element={<GkScraper />} />
+        <Route path="/education" element={<EducationAcquisition />} />
         <Route path="/documents" element={<Documents />} />
         <Route path="/documents/:id" element={<DocumentViewer />} />
         <Route path="/knowledge" element={<Knowledge />} />
@@ -56,6 +61,7 @@ export default function App() {
         <Route path="/research/:sessionId" element={<KnowledgeResearchPage />} />
         <Route path="/videos" element={<VideoGeneration />} />
         <Route path="/catalog" element={<SyllabusCatalog />} />
+        <Route path="/question-bank" element={<QuestionBank />} />
         <Route path="/users" element={<Users />} />
         <Route path="/roles" element={<Roles />} />
       </Route>

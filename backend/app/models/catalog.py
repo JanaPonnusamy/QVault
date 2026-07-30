@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, ForeignKey, Integer, Unicode, UnicodeText, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.settings import settings
@@ -29,9 +29,9 @@ class Exam(TenantAuditMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    code: Mapped[str] = mapped_column(String(40), index=True)
-    name: Mapped[str] = mapped_column(String(200))
-    description: Mapped[str] = mapped_column(Text, default="")
+    code: Mapped[str] = mapped_column(Unicode(40), index=True)
+    name: Mapped[str] = mapped_column(Unicode(200))
+    description: Mapped[str] = mapped_column(UnicodeText, default="")
     display_order: Mapped[int] = mapped_column(Integer, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
@@ -49,8 +49,8 @@ class Subject(TenantAuditMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     exam_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(_fk("exam"), ondelete="CASCADE"), index=True)
-    code: Mapped[str] = mapped_column(String(40), index=True)
-    name: Mapped[str] = mapped_column(String(200))
+    code: Mapped[str] = mapped_column(Unicode(40), index=True)
+    name: Mapped[str] = mapped_column(Unicode(200))
     display_order: Mapped[int] = mapped_column(Integer, default=0)
 
     exam: Mapped["Exam"] = relationship(back_populates="subjects")
@@ -68,8 +68,8 @@ class Unit(TenantAuditMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     subject_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(_fk("subject"), ondelete="CASCADE"), index=True)
-    code: Mapped[str] = mapped_column(String(40), index=True)
-    name: Mapped[str] = mapped_column(String(300))
+    code: Mapped[str] = mapped_column(Unicode(40), index=True)
+    name: Mapped[str] = mapped_column(Unicode(300))
     display_order: Mapped[int] = mapped_column(Integer, default=0)
 
     subject: Mapped["Subject"] = relationship(back_populates="units")
@@ -87,8 +87,8 @@ class Chapter(TenantAuditMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(_fk("unit"), ondelete="CASCADE"), index=True)
-    code: Mapped[str] = mapped_column(String(40), index=True)
-    name: Mapped[str] = mapped_column(String(300))
+    code: Mapped[str] = mapped_column(Unicode(40), index=True)
+    name: Mapped[str] = mapped_column(Unicode(300))
     display_order: Mapped[int] = mapped_column(Integer, default=0)
 
     unit: Mapped["Unit"] = relationship(back_populates="chapters")
@@ -106,8 +106,8 @@ class Topic(TenantAuditMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     chapter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(_fk("chapter"), ondelete="CASCADE"), index=True)
-    code: Mapped[str] = mapped_column(String(40), index=True)
-    name: Mapped[str] = mapped_column(String(400))
+    code: Mapped[str] = mapped_column(Unicode(40), index=True)
+    name: Mapped[str] = mapped_column(Unicode(400))
     display_order: Mapped[int] = mapped_column(Integer, default=0)
 
     chapter: Mapped["Chapter"] = relationship(back_populates="topics")

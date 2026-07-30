@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Unicode, UnicodeText
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.session import Base
@@ -14,22 +14,22 @@ class ExtractionJob(Base):
     __tablename__ = "extraction_jobs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    url: Mapped[str] = mapped_column(String(500))
-    source: Mapped[str] = mapped_column(String(20), default="youtube", index=True)
-    title: Mapped[str] = mapped_column(String(300), default="")
-    video_id: Mapped[str] = mapped_column(String(40), default="")
+    url: Mapped[str] = mapped_column(Unicode(500))
+    source: Mapped[str] = mapped_column(Unicode(20), default="youtube", index=True)
+    title: Mapped[str] = mapped_column(Unicode(300), default="")
+    video_id: Mapped[str] = mapped_column(Unicode(40), default="")
     duration: Mapped[int] = mapped_column(Integer, default=0)
-    caption: Mapped[str] = mapped_column(Text, default="")
-    author: Mapped[str] = mapped_column(String(200), default="")
-    upload_date: Mapped[str] = mapped_column(String(20), default="")
-    thumbnail_url: Mapped[str] = mapped_column(String(1000), default="")
-    source_meta: Mapped[str] = mapped_column(Text, default="")
-    extraction_strategy: Mapped[str] = mapped_column(String(30), default="hybrid")
-    extraction_options: Mapped[str] = mapped_column(Text, default="")
-    status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
-    stage: Mapped[str] = mapped_column(String(60), default="")
+    caption: Mapped[str] = mapped_column(UnicodeText, default="")
+    author: Mapped[str] = mapped_column(Unicode(200), default="")
+    upload_date: Mapped[str] = mapped_column(Unicode(20), default="")
+    thumbnail_url: Mapped[str] = mapped_column(Unicode(1000), default="")
+    source_meta: Mapped[str] = mapped_column(UnicodeText, default="")
+    extraction_strategy: Mapped[str] = mapped_column(Unicode(30), default="hybrid")
+    extraction_options: Mapped[str] = mapped_column(UnicodeText, default="")
+    status: Mapped[str] = mapped_column(Unicode(30), default="pending", index=True)
+    stage: Mapped[str] = mapped_column(Unicode(60), default="")
     progress: Mapped[int] = mapped_column(Integer, default=0)
-    error: Mapped[str] = mapped_column(Text, default="")
+    error: Mapped[str] = mapped_column(UnicodeText, default="")
     frame_count: Mapped[int] = mapped_column(Integer, default=0)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
@@ -50,16 +50,16 @@ class Frame(Base):
     job_id: Mapped[int] = mapped_column(ForeignKey("extraction_jobs.id", ondelete="CASCADE"), index=True)
     index: Mapped[int] = mapped_column(Integer, default=0)
     timestamp: Mapped[float] = mapped_column(Float, default=0.0)
-    filename: Mapped[str] = mapped_column(String(255))
+    filename: Mapped[str] = mapped_column(Unicode(255))
 
     question_score: Mapped[float] = mapped_column(Float, default=0.0)
     is_question: Mapped[bool] = mapped_column(Boolean, default=False)
     is_duplicate: Mapped[bool] = mapped_column(Boolean, default=False)
-    phash: Mapped[str] = mapped_column(String(64), default="")
-    ocr_text: Mapped[str] = mapped_column(Text, default="")
+    phash: Mapped[str] = mapped_column(Unicode(64), default="")
+    ocr_text: Mapped[str] = mapped_column(UnicodeText, default="")
     ocr_confidence: Mapped[float] = mapped_column(Float, default=0.0)
     ocr_done: Mapped[bool] = mapped_column(Boolean, default=False)
-    classification: Mapped[str] = mapped_column(Text, default="")
+    classification: Mapped[str] = mapped_column(UnicodeText, default="")
 
     job: Mapped[ExtractionJob] = relationship(back_populates="frames")
 
@@ -70,11 +70,11 @@ class Question(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     job_id: Mapped[int] = mapped_column(ForeignKey("extraction_jobs.id", ondelete="CASCADE"), index=True)
     frame_id: Mapped[int | None] = mapped_column(ForeignKey("frames.id"), nullable=True)
-    text: Mapped[str] = mapped_column(Text, default="")
-    options: Mapped[str] = mapped_column(Text, default="")
+    text: Mapped[str] = mapped_column(UnicodeText, default="")
+    options: Mapped[str] = mapped_column(UnicodeText, default="")
     timestamp: Mapped[float] = mapped_column(Float, default=0.0)
-    source: Mapped[str] = mapped_column(String(20), default="manual")
-    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    source: Mapped[str] = mapped_column(Unicode(20), default="manual")
+    status: Mapped[str] = mapped_column(Unicode(20), default="pending", index=True)
     ocr_confidence: Mapped[float] = mapped_column(Float, default=0.0)
     frame_confidence: Mapped[float] = mapped_column(Float, default=0.0)
     merge_confidence: Mapped[float] = mapped_column(Float, default=0.0)

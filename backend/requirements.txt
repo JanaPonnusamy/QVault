@@ -11,6 +11,7 @@ yt-dlp
 pycryptodomex
 rapidocr-onnxruntime
 curl_cffi
+beautifulsoup4
 PyMuPDF
 pytest
 httpx

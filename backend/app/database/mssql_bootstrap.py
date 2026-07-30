@@ -18,7 +18,7 @@ logger = get_logger("mssql_bootstrap")
 # for import logging) have tables today; the rest are created empty so future
 # modules (question bank, knowledge graph, media, video registry, acquisition)
 # can adopt them without another startup change.
-RESERVED_SCHEMAS = ["catalog", "question", "knowledge", "media", "video", "acquisition", "system"]
+RESERVED_SCHEMAS = ["catalog", "question", "knowledge", "media", "video", "acquisition", "education", "system"]
 
 
 def ensure_database() -> None:

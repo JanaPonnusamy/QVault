@@ -39,6 +39,14 @@ def _run_job(job_id: int) -> None:
             from app.services.video_generation_service import VideoGenerationService
 
             VideoGenerationService(db).run_render(job)
+        elif job.job_type == "gk_website_scrape":
+            from app.services.gk_scraper_service import GkScraperService
+
+            GkScraperService(db).run_scrape(job)
+        elif job.job_type == "education_scrape":
+            from app.services.education_acquisition_service import EducationAcquisitionService
+
+            EducationAcquisitionService(db).run_scrape(job)
         else:
             job.status = "failed"
             job.error = f"Unknown job type: {job.job_type}"

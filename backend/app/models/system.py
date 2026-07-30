@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, Uuid
+from sqlalchemy import Boolean, DateTime, Integer, Unicode, UnicodeText, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.settings import settings
@@ -22,11 +22,11 @@ class DatabaseVersion(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     version: Mapped[int] = mapped_column(Integer, index=True)
-    migration_name: Mapped[str] = mapped_column(String(200), index=True)
+    migration_name: Mapped[str] = mapped_column(Unicode(200), index=True)
     applied_on: Mapped[datetime] = mapped_column(DateTime, default=_now)
     execution_time: Mapped[int] = mapped_column(Integer, default=0)  # milliseconds
-    status: Mapped[str] = mapped_column(String(20), default="success")  # success|failed
-    error: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(Unicode(20), default="success")  # success|failed
+    error: Mapped[str] = mapped_column(UnicodeText, default="")
 
 
 class Tenant(Base):
@@ -38,8 +38,8 @@ class Tenant(Base):
     __table_args__ = {"schema": SYSTEM_SCHEMA}
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    tenant_code: Mapped[str] = mapped_column(String(50), unique=True, index=True)
-    tenant_name: Mapped[str] = mapped_column(String(200))
+    tenant_code: Mapped[str] = mapped_column(Unicode(50), unique=True, index=True)
+    tenant_name: Mapped[str] = mapped_column(Unicode(200))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_on: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
@@ -52,9 +52,9 @@ class ApplicationSetting(Base):
     __table_args__ = {"schema": SYSTEM_SCHEMA}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    key: Mapped[str] = mapped_column(String(200), unique=True, index=True)
-    value: Mapped[str] = mapped_column(Text, default="")
-    description: Mapped[str] = mapped_column(Text, default="")
+    key: Mapped[str] = mapped_column(Unicode(200), unique=True, index=True)
+    value: Mapped[str] = mapped_column(UnicodeText, default="")
+    description: Mapped[str] = mapped_column(UnicodeText, default="")
     updated_on: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
 
@@ -68,10 +68,10 @@ class AuditLog(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, default=lambda: DEFAULT_TENANT_ID, index=True)
     user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
-    action: Mapped[str] = mapped_column(String(100), index=True)
-    entity_type: Mapped[str] = mapped_column(String(100), default="")
-    entity_id: Mapped[str] = mapped_column(String(100), default="")
-    details: Mapped[str] = mapped_column(Text, default="")
+    action: Mapped[str] = mapped_column(Unicode(100), index=True)
+    entity_type: Mapped[str] = mapped_column(Unicode(100), default="")
+    entity_id: Mapped[str] = mapped_column(Unicode(100), default="")
+    details: Mapped[str] = mapped_column(UnicodeText, default="")
     created_on: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
 
 
@@ -86,15 +86,15 @@ class SyllabusImportLog(TenantAuditMixin, Base):
     __table_args__ = {"schema": SYSTEM_SCHEMA}
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    exam_code: Mapped[str] = mapped_column(String(40), index=True)
-    source_file: Mapped[str] = mapped_column(String(600))
-    status: Mapped[str] = mapped_column(String(20), default="running", index=True)  # running|success|failed
+    exam_code: Mapped[str] = mapped_column(Unicode(40), index=True)
+    source_file: Mapped[str] = mapped_column(Unicode(600))
+    status: Mapped[str] = mapped_column(Unicode(20), default="running", index=True)  # running|success|failed
     subjects_count: Mapped[int] = mapped_column(Integer, default=0)
     units_count: Mapped[int] = mapped_column(Integer, default=0)
     chapters_count: Mapped[int] = mapped_column(Integer, default=0)
     topics_count: Mapped[int] = mapped_column(Integer, default=0)
     created_count: Mapped[int] = mapped_column(Integer, default=0)
     updated_count: Mapped[int] = mapped_column(Integer, default=0)
-    error: Mapped[str] = mapped_column(Text, default="")
+    error: Mapped[str] = mapped_column(UnicodeText, default="")
     started_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

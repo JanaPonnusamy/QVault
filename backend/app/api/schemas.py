@@ -751,3 +751,389 @@ class SyllabusImportLogOut(BaseModel):
     started_at: datetime
     finished_at: datetime | None = None
     total_size: int = 0
+
+
+# ---------- Question Bank ----------
+
+QUESTION_TYPES = {
+    "mcq", "msq", "nat", "numerical", "assertion_reason",
+    "match_following", "matrix_match", "paragraph",
+    "essay", "fill_blank",
+}
+QUESTION_STATUSES = {"draft", "pending_review", "approved", "rejected", "duplicate"}
+
+
+class BankQuestionTopicIn(BaseModel):
+    subject_id: uuid.UUID | None = None
+    unit_id: uuid.UUID | None = None
+    chapter_id: uuid.UUID | None = None
+    topic_id: uuid.UUID | None = None
+    is_primary: bool = False
+
+
+class BankQuestionTopicOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    subject_id: uuid.UUID | None
+    unit_id: uuid.UUID | None
+    chapter_id: uuid.UUID | None
+    topic_id: uuid.UUID | None
+    is_primary: bool
+
+
+class BankQuestionOptionIn(BaseModel):
+    label: str = ""
+    text: str = ""
+    image_path: str = ""
+    is_correct: bool = False
+
+
+class BankQuestionOptionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    label: str
+    text: str
+    image_path: str
+    is_correct: bool
+    order_index: int
+
+
+class BankQuestionSolutionCreate(BaseModel):
+    solution_text: str
+    explanation: str = ""
+    source_type: str = "manual"
+    source_url: str = ""
+
+
+class BankQuestionSolutionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    solution_text: str
+    explanation: str
+    source_type: str
+    source_url: str
+    confidence: float
+    created_at: datetime
+
+
+class BankQuestionImageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    image_path: str
+    image_type: str
+    caption: str
+    sha256_hash: str
+    phash: str
+
+
+class BankQuestionLineageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    stage: str
+    detail: str
+    created_by: int | None
+    created_at: datetime
+
+
+class BankSourceIn(BaseModel):
+    provider: str = "manual"
+    website: str = ""
+    url: str
+    exam: str = ""
+    year: int | None = None
+    shift: str = ""
+    language: str = ""
+    license: str = ""
+    checksum: str = ""
+
+
+class BankSourceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    provider: str
+    website: str
+    url: str
+    exam: str
+    year: int | None
+    shift: str
+    language: str
+    license: str
+    checksum: str
+    first_seen: datetime
+    last_seen: datetime
+    crawl_count: int
+    last_status: str
+
+
+class BankQuestionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    exam: str
+    exam_id: uuid.UUID | None
+    year: int | None
+    session: str
+    shift: str
+    difficulty: str
+    question_type: str
+    question_text: str
+    language: str
+    correct_answer_text: str
+    image_exists: bool
+    image_path: str
+    status: str
+    current_stage: str
+    review_reason: str
+    confidence: float
+    duplicate_score: float
+    source_id: uuid.UUID | None
+    created_on: datetime
+    modified_on: datetime
+
+
+class BankQuestionDetail(BankQuestionOut):
+    answer_data: str
+    question_hash: str
+    normalized_text: str
+    topics: list[BankQuestionTopicOut] = []
+    options: list[BankQuestionOptionOut] = []
+    solutions: list[BankQuestionSolutionOut] = []
+    images: list[BankQuestionImageOut] = []
+    lineage: list[BankQuestionLineageOut] = []
+    source: BankSourceOut | None = None
+
+
+class BankQuestionCreate(BaseModel):
+    exam: str = ""
+    exam_id: uuid.UUID | None = None
+    year: int | None = None
+    session: str = ""
+    shift: str = ""
+    difficulty: str = ""
+    question_type: str = "mcq"
+    question_text: str
+    language: str = "en"
+    correct_answer_text: str = ""
+    answer_data: str = ""
+    image_exists: bool = False
+    image_path: str = ""
+    status: str = "draft"
+    confidence: float = 0.0
+    topics: list[BankQuestionTopicIn] = []
+    options: list[BankQuestionOptionIn] = []
+    solution_text: str = ""
+    solution_source_type: str = "manual"
+    source: BankSourceIn | None = None
+
+    @field_validator("question_text")
+    @classmethod
+    def _non_empty_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("question_text must not be empty")
+        return value
+
+    @field_validator("question_type")
+    @classmethod
+    def _valid_type(cls, value: str) -> str:
+        if value not in QUESTION_TYPES:
+            raise ValueError(f"question_type must be one of {sorted(QUESTION_TYPES)}")
+        return value
+
+    @field_validator("status")
+    @classmethod
+    def _valid_status(cls, value: str) -> str:
+        if value not in QUESTION_STATUSES:
+            raise ValueError(f"status must be one of {sorted(QUESTION_STATUSES)}")
+        return value
+
+
+class BankQuestionUpdate(BaseModel):
+    exam: str | None = None
+    exam_id: uuid.UUID | None = None
+    year: int | None = None
+    session: str | None = None
+    shift: str | None = None
+    difficulty: str | None = None
+    question_type: str | None = None
+    question_text: str | None = None
+    language: str | None = None
+    correct_answer_text: str | None = None
+    answer_data: str | None = None
+    image_exists: bool | None = None
+    image_path: str | None = None
+    status: str | None = None
+    confidence: float | None = None
+    topics: list[BankQuestionTopicIn] | None = None
+    options: list[BankQuestionOptionIn] | None = None
+
+    @field_validator("question_type")
+    @classmethod
+    def _valid_type(cls, value: str | None) -> str | None:
+        if value is not None and value not in QUESTION_TYPES:
+            raise ValueError(f"question_type must be one of {sorted(QUESTION_TYPES)}")
+        return value
+
+    @field_validator("status")
+    @classmethod
+    def _valid_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in QUESTION_STATUSES:
+            raise ValueError(f"status must be one of {sorted(QUESTION_STATUSES)}")
+        return value
+
+
+class BankQuestionList(BaseModel):
+    items: list[BankQuestionOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class BankQuestionStats(BaseModel):
+    total: int = 0
+    draft: int = 0
+    pending_review: int = 0
+    approved: int = 0
+    rejected: int = 0
+    duplicate: int = 0
+    with_solution: int = 0
+    with_image: int = 0
+    needs_review: int = 0
+    sources: int = 0
+    by_type: dict[str, int] = {}
+
+
+class GkScanRequest(BaseModel):
+    homepage_url: str
+
+
+class GkProfileOut(BaseModel):
+    domain: str
+    content: str
+    updated_at: datetime
+
+
+class GkProfileList(BaseModel):
+    domains: list[str]
+
+
+class GkVisitedUrlOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    source_url: str
+    document_type: str
+    status: str
+    error: str
+    discovered_at: datetime
+    updated_at: datetime
+
+
+class GkVisitedUrlList(BaseModel):
+    total: int
+    items: list[GkVisitedUrlOut]
+
+
+# ---------- Education Acquisition ----------
+
+EDUCATION_PROVIDER_CODES = {
+    "manual_url",
+    "sitemap",
+    "website_crawl",
+    "rss",
+    "government_portal",
+    "pdf_discovery",
+    "document_discovery",
+    "google",
+    "bing",
+    "duckduckgo",
+}
+
+
+class EducationScanRequest(BaseModel):
+    queries: list[str] = []
+    manual_urls: list[str] = []
+    root_urls: list[str] = []
+    rss_urls: list[str] = []
+    government_urls: list[str] = []
+    providers: list[str] = ["manual_url", "sitemap", "website_crawl", "pdf_discovery", "document_discovery", "duckduckgo"]
+    max_pages_per_root: int = Field(50, ge=1, le=500)
+    max_search_results: int = Field(30, ge=1, le=200)
+
+    @field_validator("providers")
+    @classmethod
+    def _valid_providers(cls, value: list[str]) -> list[str]:
+        bad = [item for item in value if item not in EDUCATION_PROVIDER_CODES]
+        if bad:
+            raise ValueError(f"Unknown providers: {', '.join(sorted(bad))}")
+        return value
+
+
+class EducationStatsOut(BaseModel):
+    sources: int = 0
+    documents: int = 0
+    fields: int = 0
+    forms: int = 0
+
+
+class EducationSourceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    source_key: str
+    institution_name: str
+    institution_type: str
+    board: str
+    state: str
+    district: str
+    website_url: str
+    source_kind: str
+    is_government: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class EducationSourceList(BaseModel):
+    items: list[EducationSourceOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class EducationDocumentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    source_id: str | None
+    acquisition_item_id: int | None
+    url: str
+    title: str
+    document_type: str
+    classification: str
+    file_type: str
+    checksum: str
+    local_file: str
+    language: str
+    summary: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class EducationFieldOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    canonical_key: str
+    label: str
+    value: str
+    value_type: str
+    source_kind: str
+    confidence: float
+    order_index: int
+
+
+class EducationDocumentDetail(EducationDocumentOut):
+    fields: list[EducationFieldOut] = []
+    tags: list[str] = []
+    source: EducationSourceOut | None = None
+
+
+class EducationDocumentList(BaseModel):
+    items: list[EducationDocumentOut]
+    total: int
+    limit: int
+    offset: int

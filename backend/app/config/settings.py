@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     api_host: str = "127.0.0.1"
-    api_port: int = 8000
+    # 8000 is permanently reserved by an unrelated app (NEXORA) on this
+    # machine -- QVault always runs on 8004 (see CLAUDE.md).
+    api_port: int = 8004
 
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
@@ -85,6 +87,23 @@ class Settings(BaseSettings):
     ncert_concurrent_downloads: int = 2
     ncert_timeout: int = 60
 
+    # --- GK Scraper (generic site analyzer) ---
+    # A site's real inventory (up to gk_scraper_pool_size pages) is discovered
+    # and enqueued, and a single Start Scan run fetches/parses every one of
+    # them (AcquisitionItem's idempotent (provider, source_id) state still
+    # means a second run only re-touches new/failed pages, never redoing
+    # completed ones).
+    # 5000 was a placeholder guess; cross-checked against the legacy TNPSC
+    # scraper's own lifetime visited-URL log (45,358 unique pages over ~2
+    # years) and a direct sitemap probe of gktoday.in (59,836 URLs total) --
+    # raised to cover the real site, not an arbitrary fraction of it.
+    gk_scraper_pool_size: int = 65000
+    gk_scraper_timeout: int = 20
+    # Matches the proven concurrency level from the user's own prior scrapers
+    # (examveda_fast_scraper.py / gktoday_scraper_parallel.py: Pool(8), no delay).
+    gk_scraper_concurrency: int = 8
+    gk_scraper_request_delay: float = 0.0
+
     admin_username: str = "admin"
     admin_password: str = "admin123"
     admin_email: str = "admin@qvault.local"
@@ -119,6 +138,20 @@ class Settings(BaseSettings):
     @property
     def catalog_dir(self) -> Path:
         return self.storage_dir / "catalog"
+
+    @property
+    def gk_scraper_dir(self) -> Path:
+        return self.storage_dir / "gk_scraper"
+
+    @property
+    def education_dir(self) -> Path:
+        return self.storage_dir / "education"
+
+    @property
+    def acquisition_dir(self) -> Path:
+        """Deterministic download layout for the Question Acquisition &
+        Extraction Engine's provider framework: <provider>/<exam>/<year>/<source_id>/."""
+        return self.storage_dir / "acquisition"
 
     @property
     def templates_dir(self) -> Path:
@@ -180,12 +213,24 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+# QVAULT_STORAGE_DIR (and any other Path-typed env override) may arrive as a
+# bare relative value (e.g. "storage") — pydantic-settings casts it to Path
+# as-is, so it silently resolved against the process's cwd rather than the
+# repo root. Every documented run command `cd backend && uvicorn ...` has a
+# cwd of `backend/`, so this was quietly writing/reading a second, wrong
+# `backend/storage/` tree instead of the top-level `storage/` the rest of the
+# codebase assumes. Anchor it to ROOT once, here, regardless of cwd.
+if not settings.storage_dir.is_absolute():
+    settings.storage_dir = (ROOT / settings.storage_dir).resolve()
 settings.storage_dir.mkdir(parents=True, exist_ok=True)
 settings.jobs_dir.mkdir(parents=True, exist_ok=True)
 settings.instagram_dir.mkdir(parents=True, exist_ok=True)
 settings.ncert_dir.mkdir(parents=True, exist_ok=True)
 settings.documents_dir.mkdir(parents=True, exist_ok=True)
 settings.catalog_dir.mkdir(parents=True, exist_ok=True)
+settings.gk_scraper_dir.mkdir(parents=True, exist_ok=True)
+settings.education_dir.mkdir(parents=True, exist_ok=True)
+settings.acquisition_dir.mkdir(parents=True, exist_ok=True)
 (ROOT / "database").mkdir(parents=True, exist_ok=True)
 for _sub in ("videos", "shorts", "reels", ".work"):
     (settings.output_dir / _sub).mkdir(parents=True, exist_ok=True)

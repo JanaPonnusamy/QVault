@@ -84,6 +84,14 @@ class KnowledgeService:
             self._enqueue([d.id for d in documents], user_id)
         return documents
 
+    def ingest_external(self, source: str, source_ref: str, title: str, path: Path, user_id: int | None) -> Document:
+        """Register an already-downloaded PDF from an external acquisition
+        source (e.g. the GK Scraper) and enqueue it through the existing
+        extraction pipeline — never a second PDF pipeline."""
+        document = self._create_document(source=source, source_ref=source_ref, title=title, path=path)
+        self._enqueue([document.id], user_id)
+        return document
+
     def reprocess(self, document_id: int, user_id: int | None) -> Document | None:
         document = self.docs.get(document_id)
         if not document:

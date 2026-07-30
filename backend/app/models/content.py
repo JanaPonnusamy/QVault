@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, Unicode, UnicodeText
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.session import Base
@@ -28,7 +28,7 @@ class ContentSection(Base):
     parent_id: Mapped[int | None] = mapped_column(
         ForeignKey("content_sections.id"), nullable=True, index=True
     )
-    title: Mapped[str] = mapped_column(String(500), default="")
+    title: Mapped[str] = mapped_column(Unicode(500), default="")
     level: Mapped[int] = mapped_column(Integer, default=1)
     order_index: Mapped[int] = mapped_column(Integer, default=0, index=True)
     page_start: Mapped[int] = mapped_column(Integer, default=0)
@@ -52,11 +52,11 @@ class ContentBlock(Base):
     section_id: Mapped[int | None] = mapped_column(
         ForeignKey("content_sections.id"), nullable=True, index=True
     )
-    block_type: Mapped[str] = mapped_column(String(20), index=True)
+    block_type: Mapped[str] = mapped_column(Unicode(20), index=True)
     order_index: Mapped[int] = mapped_column(Integer, default=0, index=True)
-    text: Mapped[str] = mapped_column(Text, default="")
-    caption: Mapped[str] = mapped_column(Text, default="")
+    text: Mapped[str] = mapped_column(UnicodeText, default="")
+    caption: Mapped[str] = mapped_column(UnicodeText, default="")
     page: Mapped[int] = mapped_column(Integer, default=0)
-    source_element_ids: Mapped[str] = mapped_column(Text, default="")
-    extra: Mapped[str] = mapped_column(Text, default="")
+    source_element_ids: Mapped[str] = mapped_column(UnicodeText, default="")
+    extra: Mapped[str] = mapped_column(UnicodeText, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

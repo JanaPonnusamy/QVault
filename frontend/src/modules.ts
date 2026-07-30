@@ -15,6 +15,8 @@ export const MODULES: ModuleDef[] = [
   { key: "youtube_extractor", label: "YouTube", icon: "bi-youtube", color: "#ef4444", path: "/extractor", permission: "youtube_extractor:view", group: "Sources", available: true },
   { key: "instagram", label: "Instagram", icon: "bi-instagram", color: "#d6249f", path: "/instagram", permission: "instagram:view", group: "Sources", available: true },
   { key: "ncert", label: "NCERT", icon: "bi-journal-bookmark", color: "#0891b2", path: "/ncert", permission: "ncert:view", group: "Sources", available: true },
+  { key: "gk_scraper", label: "GK Scraper", icon: "bi-globe2", color: "#f59e0b", path: "/gk-scraper", permission: "gk_scraper:view", group: "Sources", available: true },
+  { key: "education_acquisition", label: "Education Knowledge", icon: "bi-buildings", color: "#0f766e", path: "/education", permission: "education_acquisition:view", group: "Sources", available: true },
   { key: "pdf_import", label: "PDF", icon: "bi-file-earmark-pdf", color: "#dc2626", group: "Sources", available: false },
   { key: "image_import", label: "Images", icon: "bi-file-earmark-image", color: "#7c3aed", group: "Sources", available: false },
   { key: "previous_papers", label: "Previous Year Papers", icon: "bi-files", color: "#0d9488", group: "Question Management", available: false },
@@ -25,7 +27,7 @@ export const MODULES: ModuleDef[] = [
   { key: "knowledge", label: "Knowledge Explorer", icon: "bi-diagram-3", color: "#7c3aed", path: "/knowledge", permission: "knowledge:view", group: "Knowledge", available: true },
   { key: "research", label: "Knowledge Research", icon: "bi-search-heart", color: "#059669", path: "/research", permission: "research:view", group: "Knowledge", available: true },
 
-  { key: "question_bank", label: "Question Bank", icon: "bi-collection", color: "#2563eb", group: "Question Management", available: false },
+  { key: "question_bank", label: "Question Bank", icon: "bi-collection", color: "#2563eb", path: "/question-bank", permission: "question_bank:view", group: "Question Management", available: true },
   { key: "validation", label: "Question Validation", icon: "bi-check2-square", color: "#16a34a", group: "Question Management", available: false },
   { key: "classification", label: "Question Classification", icon: "bi-tags", color: "#9333ea", group: "Question Management", available: false },
   { key: "generator", label: "Question Generator", icon: "bi-stars", color: "#d97706", group: "Question Management", available: false },

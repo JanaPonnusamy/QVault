@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, Unicode, UnicodeText
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.session import Base
@@ -30,14 +30,14 @@ class KnowledgeNode(Base):
     parent_id: Mapped[int | None] = mapped_column(
         ForeignKey("knowledge_nodes.id"), nullable=True, index=True
     )
-    node_type: Mapped[str] = mapped_column(String(20), index=True)  # root|section|paragraph|table|figure
-    title: Mapped[str] = mapped_column(String(500), default="")
-    content: Mapped[str] = mapped_column(Text, default="")
+    node_type: Mapped[str] = mapped_column(Unicode(20), index=True)  # root|section|paragraph|table|figure
+    title: Mapped[str] = mapped_column(Unicode(500), default="")
+    content: Mapped[str] = mapped_column(UnicodeText, default="")
     level: Mapped[int | None] = mapped_column(Integer, nullable=True)
     depth: Mapped[int] = mapped_column(Integer, default=0)
     order_index: Mapped[int] = mapped_column(Integer, default=0, index=True)
     page: Mapped[int] = mapped_column(Integer, default=0)
     element_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    path: Mapped[str] = mapped_column(String(500), default="")
-    extra: Mapped[str] = mapped_column(Text, default="")
+    path: Mapped[str] = mapped_column(Unicode(500), default="")
+    extra: Mapped[str] = mapped_column(UnicodeText, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

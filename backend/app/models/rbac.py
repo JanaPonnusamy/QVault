@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Unicode, Table, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.session import Base
@@ -23,18 +23,18 @@ class Permission(Base):
     __table_args__ = (UniqueConstraint("module", "action", name="uq_permission_module_action"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    module: Mapped[str] = mapped_column(String(80), index=True)
-    action: Mapped[str] = mapped_column(String(40))
-    code: Mapped[str] = mapped_column(String(140), unique=True, index=True)
-    description: Mapped[str] = mapped_column(String(255), default="")
+    module: Mapped[str] = mapped_column(Unicode(80), index=True)
+    action: Mapped[str] = mapped_column(Unicode(40))
+    code: Mapped[str] = mapped_column(Unicode(140), unique=True, index=True)
+    description: Mapped[str] = mapped_column(Unicode(255), default="")
 
 
 class Role(Base):
     __tablename__ = "roles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(80), unique=True, index=True)
-    description: Mapped[str] = mapped_column(String(255), default="")
+    name: Mapped[str] = mapped_column(Unicode(80), unique=True, index=True)
+    description: Mapped[str] = mapped_column(Unicode(255), default="")
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
@@ -48,10 +48,10 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
-    email: Mapped[str] = mapped_column(String(160), unique=True, index=True)
-    full_name: Mapped[str] = mapped_column(String(160), default="")
-    hashed_password: Mapped[str] = mapped_column(String(255))
+    username: Mapped[str] = mapped_column(Unicode(80), unique=True, index=True)
+    email: Mapped[str] = mapped_column(Unicode(160), unique=True, index=True)
+    full_name: Mapped[str] = mapped_column(Unicode(160), default="")
+    hashed_password: Mapped[str] = mapped_column(Unicode(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
     role_id: Mapped[int | None] = mapped_column(ForeignKey("roles.id"), nullable=True)
