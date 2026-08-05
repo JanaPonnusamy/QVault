@@ -1,3 +1,5 @@
+import type { BrandingConfig } from "./types";
+
 export interface ModuleDef {
   key: string;
   label: string;
@@ -54,3 +56,7 @@ export const MODULES: ModuleDef[] = [
 ];
 
 export const MODULE_GROUPS = [...new Set(MODULES.map((m) => m.group))];
+
+export function getModuleColor(moduleKey: string, branding?: BrandingConfig | null): string {
+  return branding?.module_colors?.[moduleKey] || MODULES.find((m) => m.key === moduleKey)?.color || "#2563eb";
+}

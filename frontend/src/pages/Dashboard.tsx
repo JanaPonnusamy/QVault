@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
-import { MODULES } from "../modules";
+import { useBranding } from "../branding/BrandingContext";
+import { getModuleColor, MODULES } from "../modules";
 
 export default function Dashboard() {
   const { user, can } = useAuth();
+  const { branding } = useBranding();
   const modules = MODULES.filter((m) => m.key !== "dashboard" && (!m.permission || can(m.permission)));
   const available = modules.filter((m) => m.available);
 
@@ -21,7 +23,7 @@ export default function Dashboard() {
         {modules.map((m) => {
           const card = (
             <div className="qv-module-card">
-              <div className="qv-module-icon" style={{ background: m.color }}>
+              <div className="qv-module-icon" style={{ background: getModuleColor(m.key, branding) }}>
                 <i className={`bi ${m.icon}`} />
               </div>
               <div className="fw-semibold">{m.label}</div>

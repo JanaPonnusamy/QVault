@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useBranding } from "../branding/BrandingContext";
 import JobProgress from "../components/JobProgress";
+import { getModuleColor } from "../modules";
 import type { AcquisitionJob, NcertBook, NcertFacets, NcertStats } from "../types";
 
 const STATUS_BADGE: Record<string, string> = {
@@ -24,6 +26,7 @@ function fmtSize(bytes: number): string {
 
 export default function Ncert() {
   const { can } = useAuth();
+  const { branding } = useBranding();
   const canExecute = can("ncert:execute");
   const canDelete = can("ncert:delete");
 
@@ -173,7 +176,7 @@ export default function Ncert() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const cards = [
-    { label: "Available", value: stats?.available ?? 0, icon: "bi-collection", color: "#2563eb" },
+    { label: "Available", value: stats?.available ?? 0, icon: "bi-collection", color: getModuleColor("ncert", branding) },
     { label: "Downloaded", value: stats?.downloaded ?? 0, icon: "bi-check-circle", color: "#16a34a" },
     { label: "Pending", value: stats?.pending ?? 0, icon: "bi-hourglass-split", color: "#d97706" },
     { label: "Failed", value: stats?.failed ?? 0, icon: "bi-x-circle", color: "#dc2626" },

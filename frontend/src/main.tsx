@@ -8,13 +8,16 @@ import "./index.css";
 
 import App from "./App";
 import { AuthProvider } from "./auth/AuthContext";
+import { BrandingProvider } from "./branding/BrandingContext";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <BrandingProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrandingProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

@@ -7,16 +7,31 @@
   --qv-sidebar-collapsed: 64px;
   --qv-topbar-height: 56px;
   --qv-bg: #f4f6fa;
+  --qv-surface: #ffffff;
+  --qv-surface-alt: #f8fafc;
+  --qv-text: #1e293b;
+  --qv-muted-text: #64748b;
   --qv-sidebar-bg: #0f172a;
   --qv-sidebar-fg: #cbd5e1;
+  --qv-sidebar-group: #64748b;
   --qv-accent: #2563eb;
+  --qv-accent-contrast: #ffffff;
+  --qv-border: #e2e8f0;
+  --qv-login-bg: linear-gradient(135deg,#0f172a,#1e3a8a);
+  --qv-font-base: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --qv-font-heading: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --qv-font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
 body {
   margin: 0;
   background: var(--qv-bg);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color: #1e293b;
+  font-family: var(--qv-font-base);
+  color: var(--qv-text);
+}
+
+h1, h2, h3, h4, h5, h6, .fw-bold, .fw-semibold {
+  font-family: var(--qv-font-heading);
 }
 
 .qv-shell {
@@ -53,6 +68,15 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   white-space: nowrap;
 }
+.qv-brand-icon {
+  color: var(--qv-accent);
+}
+.qv-brand-logo,
+.qv-login-logo {
+  max-height: 42px;
+  max-width: 100%;
+  object-fit: contain;
+}
 .qv-nav {
   overflow-y: auto;
   overflow-x: hidden;
@@ -70,7 +94,7 @@ body {
   text-transform: uppercase;
   font-size: 0.68rem;
   letter-spacing: 0.06em;
-  color: #64748b;
+  color: var(--qv-sidebar-group);
   padding: 14px 12px 6px;
   white-space: nowrap;
 }
@@ -92,7 +116,7 @@ body {
 }
 .qv-nav-link.active {
   background: var(--qv-accent);
-  color: #fff;
+  color: var(--qv-accent-contrast);
 }
 .qv-nav-link.disabled {
   opacity: 0.4;
@@ -121,8 +145,8 @@ body {
 }
 .qv-topbar {
   height: var(--qv-topbar-height);
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--qv-surface);
+  border-bottom: 1px solid var(--qv-border);
   display: flex;
   align-items: center;
   gap: 16px;
@@ -141,9 +165,9 @@ body {
 
 /* Module cards */
 .qv-module-card {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--qv-border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--qv-surface);
   padding: 20px;
   height: 100%;
   text-decoration: none;
@@ -163,7 +187,7 @@ body {
   align-items: center;
   justify-content: center;
   font-size: 1.4rem;
-  color: #fff;
+  color: var(--qv-accent-contrast);
   margin-bottom: 14px;
 }
 
@@ -274,7 +298,7 @@ body {
 .qv-log {
   background: #0f172a;
   color: #cbd5e1;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--qv-font-mono);
   font-size: 0.78rem;
   border-radius: 10px;
   max-height: 260px;
@@ -343,6 +367,7 @@ body {
   cursor: pointer;
   position: relative;
   background: #fff;
+  background: var(--qv-surface);
 }
 .qv-frame img {
   width: 100%;
@@ -369,6 +394,7 @@ body {
   left: 6px;
   background: rgba(0, 0, 0, 0.65);
   color: #fff;
+  color: var(--qv-accent-contrast);
   font-size: 0.72rem;
   padding: 2px 6px;
   border-radius: 4px;

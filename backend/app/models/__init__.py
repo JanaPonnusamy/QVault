@@ -3,6 +3,14 @@ from app.models.extraction import ExtractionJob, Frame, Question
 from app.models.acquisition import AcquisitionItem, AcquisitionJob, NcertBook, Notification
 from app.models.document import Document, DocumentBookmark, DocumentElement
 from app.models.knowledge import KnowledgeNode
+from app.models.knowledge_research import (
+    KnowledgeAiRun,
+    KnowledgeConsensus,
+    KnowledgeDocument,
+    KnowledgeEntity,
+    KnowledgeFact,
+    KnowledgeSession,
+)
 from app.models.content import ContentBlock, ContentSection
 from app.models.video import Video
 from app.models.catalog import Chapter, Exam, Subject, Topic, Unit
@@ -34,6 +42,12 @@ __all__ = [
     "DocumentElement",
     "DocumentBookmark",
     "KnowledgeNode",
+    "KnowledgeSession",
+    "KnowledgeDocument",
+    "KnowledgeFact",
+    "KnowledgeEntity",
+    "KnowledgeConsensus",
+    "KnowledgeAiRun",
     "ContentSection",
     "ContentBlock",
     "Video",

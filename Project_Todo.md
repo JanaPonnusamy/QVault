@@ -40,11 +40,42 @@ sprint finishes. Keep this file accurate after every sprint (see CLAUDE.md rule 
 
 ## COMPLETED (pending doc sync)
 
+### Maintenance - Knowledge Research SQL unification + startup lock fix (v0.14.x)
+- Replaced the Knowledge Research module's raw `sqlite3` repository with a SQLAlchemy repository on the shared main database, so research sessions/documents/facts/entities/consensus/ai-run rows now use the same configured backend as the rest of QVault instead of bypassing it through `database/qvault.db`
+- Removed the startup-time SQLite schema write that was happening during router import: the Research router now lazy-creates its shared service singleton, so app boot no longer depends on side-effecting DB work before `init_db()` completes
+- Updated the one-click launcher to stop forcing `QVAULT_DB_BACKEND=sqlite`; it now honors the configured backend from `config/.env`, and SQL Server connection settings now emit `Encrypt=no` by default unless encryption is explicitly enabled
+- Verified on an isolated temporary database path: backend import succeeds, `tests/test_auth_login.py` passes (`7 passed`), and frontend `npm.cmd run build` passes; live SQL Server verification remains dependent on the configured server at `192.168.10.73` being reachable from this machine
+
+### Maintenance - launcher stability follow-up (v0.14.x)
+- Updated the one-click Windows launcher to `call` its generated helper `.cmd` files explicitly, and the frontend helper now `call`s `npm.cmd` instead of invoking it bare
+- This keeps the frontend Vite dev server alive reliably in the spawned terminal window instead of intermittently dropping out and leaving the login screen stuck on network/500 errors after startup
+- Re-verified the live local path after relaunch: frontend `http://127.0.0.1:5174/` returned `200`, backend `http://127.0.0.1:8005/api/system/branding` returned `200`, and the real `admin/admin123` form login against `/api/auth/login` returned `200`
+
+### Maintenance - local launcher repair (v0.14.x)
+- Rewrote `launch_qvault.bat` so the backend/frontend launch commands are emitted into temporary helper `.cmd` files first instead of relying on fragile nested `cmd /k` quoting
+- Fixed the launcher's Python detection bug: absolute virtualenv paths are now validated correctly instead of being incorrectly passed through `where`
+- Kept the proper local ports (`127.0.0.1:8005` backend, `127.0.0.1:5174` frontend) and kept the backend CORS override aligned with the frontend dev URL
+- One-click launch now defaults to the SQLite dev database for reliable local startup even when `config/.env` is pointed at an unavailable SQL Server; verified live with `GET /api/system/branding` on `8005` and the Vite dev server on `5174` both returning `200`
+
+### Maintenance - dev-console/runtime cleanup (v0.14.x)
+- Fixed the Knowledge page's mapped-documents query to be SQL Server-safe by aggregating `knowledge_nodes` in a subquery before joining back to `documents`, eliminating the `GROUP BY` `500` on `/api/knowledge/documents`
+- Opted `BrowserRouter` into the React Router v7 future flags (`v7_startTransition`, `v7_relativeSplatPath`) so the repeated dev-console warnings disappear during local development
+- Added an inline SVG favicon in `frontend/index.html` so the browser stops requesting a missing `/favicon.ico`
+- Re-verified the live dev app after restart: `/api/auth/login`, `/api/system/branding`, `/api/knowledge/stats`, and `/api/knowledge/documents` all returned successfully; frontend `npm.cmd run build` passes
+
+### Maintenance - local launch ports + one-click launcher (v0.14.x)
+- Moved QVault's local dev ports off the machine's already-occupied app ports: backend default changed from 8004 to 8005, frontend Vite dev server from 5173 to 5174, and backend CORS/dev proxy values were kept in sync
+- Updated both the committed template (config/.env.example) and the local runtime override (config/.env) so the default launch path and the checked-in documentation agree
+- Added root launch_qvault.bat to open separate backend/frontend terminal windows with one click (uvicorn on 127.0.0.1:8005, Vite on 127.0.0.1:5174)
+- Updated AGENTS.md run instructions so future sessions pick up the new non-conflicting ports immediately
+
 ### Knowledge Intake â€” Education Knowledge Acquisition (v0.14.0)
 - New `/education` admin module + `education_acquisition` RBAC, built on the shared acquisition framework (`acquisition_jobs` + `AcquisitionItem`) rather than a parallel scraper
 - Configurable public-web discovery providers: Google/Bing/DuckDuckGo queries, manual URLs, sitemap, same-domain crawl, RSS, government portals, PDF discovery, and generic document discovery; no auth/CAPTCHA bypass
 - Deterministic HTML/PDF/DOCX/image/XML/TXT parsing into normalized `education_sources` / `education_documents` / `education_fields` / `education_tags` data, with canonical field normalization for school/ERP-style forms
 - Downloadable exports added: JSON, CSV, Markdown, and SQLite under `storage/education/exports/`; frontend dashboard page includes scan configuration, job polling, document inspection, and export actions
+- Added a standard school-admission field blueprint split into Enquiry vs Application stages; document detail now shows required-field coverage, custom school-specific fields, and preserved metadata so later custom-field configuration can be layered on without losing extracted input
+- Added tenant/business branding configuration foundation: public branding API + `config/branding.json` + frontend branding provider/CSS variables, so app name, logo, fonts, accent/sidebar colors, login background, and module colors are configurable per tenant/business instead of hardcoded
 - Verified on the SQLite path: backend imports cleanly (`QVAULT_DB_BACKEND=sqlite`), frontend `npm.cmd run build` passes, focused backend tests (`tests/test_education_acquisition.py`) pass
 
 ### Maintenance — GK Scraper: full-site single-run scrape + solution-gap fix (v0.13.x)
@@ -220,3 +251,4 @@ sprint finishes. Keep this file accurate after every sprint (see CLAUDE.md rule 
 - Notification system (bell, unread badge; scan/download/update events)
 - NCERT REST API + frontend page (filters, search, pagination, queue)
 - Sidebar "Sources" group (YouTube, NCERT live; PDF/Images coming soon)
+

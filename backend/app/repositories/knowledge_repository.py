@@ -72,10 +72,17 @@ class KnowledgeRepository:
         return list(self.db.scalars(stmt.order_by(KnowledgeNode.document_id, KnowledgeNode.order_index).limit(limit)))
 
     def mapped_documents(self) -> list[tuple[Document, int]]:
+        node_counts = (
+            select(
+                KnowledgeNode.document_id.label("document_id"),
+                func.count(KnowledgeNode.id).label("node_count"),
+            )
+            .group_by(KnowledgeNode.document_id)
+            .subquery()
+        )
         rows = self.db.execute(
-            select(Document, func.count(KnowledgeNode.id))
-            .join(KnowledgeNode, KnowledgeNode.document_id == Document.id)
-            .group_by(Document.id)
+            select(Document, node_counts.c.node_count)
+            .join(node_counts, node_counts.c.document_id == Document.id)
             .order_by(Document.id.desc())
         ).all()
         return [(doc, count) for doc, count in rows]

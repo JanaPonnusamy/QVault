@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from sqlalchemy.orm import Session
@@ -5,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import db_session, require_permission
 from app.api.schemas import (
     AcquisitionJobOut,
+    EducationFieldCatalogOut,
     EducationDocumentDetail,
     EducationDocumentList,
     EducationDocumentOut,
@@ -14,6 +17,7 @@ from app.api.schemas import (
     EducationStatsOut,
 )
 from app.models.rbac import User
+from app.services.education_field_catalog import field_catalog_payload, summarize_document_fields
 from app.services.education_acquisition_service import EducationAcquisitionService
 
 router = APIRouter(prefix="/api/sources/education", tags=["education_acquisition"])
@@ -46,6 +50,14 @@ def stats(
     _: object = Depends(require_permission(f"{MODULE}:view")),
 ):
     return EducationStatsOut(**EducationAcquisitionService(db).stats())
+
+
+@router.get("/field-catalog", response_model=EducationFieldCatalogOut)
+def field_catalog(
+    db: Session = Depends(db_session),
+    _: object = Depends(require_permission(f"{MODULE}:view")),
+):
+    return EducationFieldCatalogOut(**field_catalog_payload())
 
 
 @router.get("/sources", response_model=EducationSourceList)
@@ -111,11 +123,18 @@ def get_document(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     source = service.repo.get_source(document.source_id) if document.source_id else None
+    metadata = json.loads(document.metadata_json or "{}")
+    fields = service.repo.document_fields(document.id)
     return EducationDocumentDetail(
         **EducationDocumentOut.model_validate(document).model_dump(),
-        fields=service.repo.document_fields(document.id),
+        fields=fields,
         tags=service.repo.document_tags(document.id),
         source=EducationSourceOut.model_validate(source) if source else None,
+        metadata=metadata,
+        field_summary=summarize_document_fields(
+            [EducationFieldOut.model_validate(field).model_dump() for field in fields],
+            metadata,
+        ),
     )
 
 

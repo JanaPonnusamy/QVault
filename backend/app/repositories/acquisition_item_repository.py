@@ -73,3 +73,27 @@ class AcquisitionItemRepository:
             select(AcquisitionItem.status, func.count()).group_by(AcquisitionItem.status)
         ).all()
         return {status: count for status, count in rows}
+
+    def gk_provider_stats(self) -> dict[str, dict]:
+        """Per-provider rollup for every `gk_*` provider (one GK site's
+        AcquisitionItem pool): total pages, completed pages, failed pages,
+        and the most recent update — the source-of-truth counts for the GK
+        scraper's site report, so it needn't duplicate this into a new table."""
+        rows = self.db.execute(
+            select(AcquisitionItem.provider, AcquisitionItem.status, func.count(), func.max(AcquisitionItem.updated_at))
+            .where(AcquisitionItem.provider.like("gk_%"))
+            .group_by(AcquisitionItem.provider, AcquisitionItem.status)
+        ).all()
+        result: dict[str, dict] = {}
+        for provider, status, count, last_updated in rows:
+            entry = result.setdefault(
+                provider, {"total": 0, "completed": 0, "failed": 0, "last_updated": None}
+            )
+            entry["total"] += count
+            if status == "completed":
+                entry["completed"] += count
+            elif status in ("failed", "retry"):
+                entry["failed"] += count
+            if last_updated and (entry["last_updated"] is None or last_updated > entry["last_updated"]):
+                entry["last_updated"] = last_updated
+        return result

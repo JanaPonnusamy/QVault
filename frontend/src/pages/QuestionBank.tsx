@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useBranding } from "../branding/BrandingContext";
 import ConfidenceBadge from "../components/ConfidenceBadge";
 import Modal from "../components/Modal";
+import { getModuleColor } from "../modules";
 import type {
   BankQuestion,
   BankQuestionDetail,
@@ -93,6 +95,7 @@ function useCatalogPicker() {
 
 export default function QuestionBank() {
   const { can } = useAuth();
+  const { branding } = useBranding();
   const canCreate = can("question_bank:create");
   const canUpdate = can("question_bank:update");
   const canDelete = can("question_bank:delete");
@@ -313,7 +316,7 @@ export default function QuestionBank() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const cards = [
-    { label: "Total", value: stats?.total ?? 0, icon: "bi-collection", color: "#2563eb" },
+    { label: "Total", value: stats?.total ?? 0, icon: "bi-collection", color: getModuleColor("question_bank", branding) },
     { label: "Approved", value: stats?.approved ?? 0, icon: "bi-check-circle", color: "#16a34a" },
     { label: "Pending Review", value: stats?.pending_review ?? 0, icon: "bi-hourglass-split", color: "#d97706" },
     { label: "Duplicates", value: stats?.duplicate ?? 0, icon: "bi-files", color: "#9333ea" },

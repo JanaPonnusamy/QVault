@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config.settings import settings
 from app.integrations.acquisition.providers.education import build_discovery_providers, parse_education_document
+from app.integrations.acquisition.providers.education.discovery import _is_relevant_search_target
 from app.integrations.acquisition.providers.education.discovery import EducationDiscoveryConfig
 from app.models.acquisition import AcquisitionItem, AcquisitionJob
 from app.repositories.acquisition_repository import AcquisitionJobRepository
@@ -139,6 +140,14 @@ class EducationAcquisitionService:
                     item, fetched = future.result()
                     self.queue.mark_downloaded(item, fetched.local_file or "", fetched.checksum)
                     parsed = parse_education_document(fetched)
+                    if _should_skip_document(fetched.source_url, parsed.title, parsed.summary):
+                        self.queue.mark_completed(item)
+                        self.db.commit()
+                        continue
+                    if fetched.metadata.get("origin") == "search" and not _is_relevant_search_target(fetched.source_url):
+                        self.queue.mark_completed(item)
+                        self.db.commit()
+                        continue
                     source = self.repo.upsert_source(
                         source_key=parsed.source_key,
                         institution_name=parsed.institution_name,
@@ -348,3 +357,18 @@ def url_scheme_host(url: str) -> str:
 
     parsed = urlparse(url)
     return f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else url
+
+
+def _should_skip_document(url: str, title: str, summary: str) -> bool:
+    lowered_title = (title or "").strip().lower()
+    lowered_summary = (summary or "").strip().lower()
+    lowered_url = (url or "").strip().lower()
+    if not lowered_url.startswith("http"):
+        return True
+    if "bing.com/ck/a" in lowered_url:
+        return True
+    if lowered_title in {"please", "loading...", "redirecting...", "just a moment..."}:
+        return True
+    if "click here if the page does not redirect automatically" in lowered_summary:
+        return True
+    return False

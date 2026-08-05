@@ -20,3 +20,4 @@ faster-whisper
 edge-tts
 Pillow
 numpy
+ijson

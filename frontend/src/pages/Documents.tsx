@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useBranding } from "../branding/BrandingContext";
 import JobProgress from "../components/JobProgress";
+import { getModuleColor } from "../modules";
 import type { AcquisitionJob, DocItem, DocStats, DownloadedBook } from "../types";
 
 const STATUS_BADGE: Record<string, string> = {
@@ -17,6 +19,7 @@ const PAGE_SIZE = 25;
 
 export default function Documents() {
   const { can } = useAuth();
+  const { branding } = useBranding();
   const canExecute = can("documents:execute");
   const canDelete = can("documents:delete");
 
@@ -131,7 +134,7 @@ export default function Documents() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const cards = [
-    { label: "Documents", value: stats?.total ?? 0, icon: "bi-files", color: "#2563eb" },
+    { label: "Documents", value: stats?.total ?? 0, icon: "bi-files", color: getModuleColor("documents", branding) },
     { label: "Processed", value: stats?.processed ?? 0, icon: "bi-check-circle", color: "#16a34a" },
     { label: "Pending", value: stats?.pending ?? 0, icon: "bi-hourglass-split", color: "#d97706" },
     { label: "Failed", value: stats?.failed ?? 0, icon: "bi-x-circle", color: "#dc2626" },

@@ -28,6 +28,41 @@ export interface CurrentUser extends User {
   permissions: string[];
 }
 
+export interface BrandingFonts {
+  base: string;
+  heading: string;
+  mono: string;
+}
+
+export interface BrandingTheme {
+  background: string;
+  surface: string;
+  surface_alt: string;
+  text: string;
+  muted_text: string;
+  sidebar_background: string;
+  sidebar_text: string;
+  sidebar_group_text: string;
+  accent: string;
+  accent_contrast: string;
+  border: string;
+  login_background: string;
+}
+
+export interface BrandingConfig {
+  tenant_code: string;
+  tenant_name: string;
+  business_name: string;
+  app_name: string;
+  tagline: string;
+  logo_text: string;
+  logo_icon: string;
+  logo_url: string;
+  fonts: BrandingFonts;
+  theme: BrandingTheme;
+  module_colors: Record<string, string>;
+}
+
 export type FrameExtractionStrategy = "fixed_interval" | "scene_detection" | "ocr_text_change" | "hybrid" | "all_frames";
 
 // null = "every decoded frame" (catches sub-300ms flash content).
@@ -160,6 +195,7 @@ export interface AcquisitionJob {
   total: number;
   processed: number;
   error: string;
+  payload: string;
   created_at: string;
   updated_at: string;
 }
@@ -185,74 +221,16 @@ export interface GkVisitedUrlList {
   items: GkVisitedUrl[];
 }
 
-export interface EducationStats {
-  sources: number;
-  documents: number;
-  fields: number;
-  forms: number;
-}
-
-export interface EducationSource {
-  id: string;
-  source_key: string;
-  institution_name: string;
-  institution_type: string;
-  board: string;
-  state: string;
-  district: string;
-  website_url: string;
-  source_kind: string;
-  is_government: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface EducationSourceList {
-  items: EducationSource[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-export interface EducationDocument {
-  id: string;
-  source_id: string | null;
-  acquisition_item_id: number | null;
-  url: string;
-  title: string;
-  document_type: string;
-  classification: string;
-  file_type: string;
-  checksum: string;
-  local_file: string;
-  language: string;
-  summary: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface EducationField {
-  id: number;
-  canonical_key: string;
-  label: string;
-  value: string;
-  value_type: string;
-  source_kind: string;
-  confidence: number;
-  order_index: number;
-}
-
-export interface EducationDocumentDetail extends EducationDocument {
-  fields: EducationField[];
-  tags: string[];
-  source: EducationSource | null;
-}
-
-export interface EducationDocumentList {
-  items: EducationDocument[];
-  total: number;
-  limit: number;
-  offset: number;
+export interface GkSiteReport {
+  domain: string;
+  homepage_url: string;
+  status: "not_started" | "queued" | "scanning" | "downloading" | "completed" | "partial" | "failed" | string;
+  total_pages: number;
+  scraped_pages: number;
+  failed_pages: number;
+  questions: number;
+  options: number;
+  last_scanned: string | null;
 }
 
 export interface DocItem {
@@ -695,4 +673,114 @@ export interface BankQuestionStats {
   needs_review: number;
   sources: number;
   by_type: Record<string, number>;
+}
+
+// ---------- Education Acquisition ----------
+
+export interface EducationStats {
+  sources: number;
+  documents: number;
+  fields: number;
+  forms: number;
+}
+
+export interface EducationSource {
+  id: string;
+  source_key: string;
+  institution_name: string;
+  institution_type: string;
+  board: string;
+  state: string;
+  district: string;
+  website_url: string;
+  source_kind: string;
+  is_government: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EducationSourceList {
+  items: EducationSource[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface EducationDocument {
+  id: string;
+  source_id: string | null;
+  acquisition_item_id: number | null;
+  url: string;
+  title: string;
+  document_type: string;
+  classification: string;
+  file_type: string;
+  checksum: string;
+  local_file: string;
+  language: string;
+  summary: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EducationDocumentList {
+  items: EducationDocument[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface EducationField {
+  id: number;
+  canonical_key: string;
+  label: string;
+  value: string;
+  value_type: string;
+  source_kind: string;
+  confidence: number;
+  order_index: number;
+}
+
+export interface EducationFieldCatalogItem {
+  key: string;
+  label: string;
+  stage: string;
+  required: boolean;
+  description: string;
+}
+
+export interface EducationFieldValue {
+  value: string;
+  label: string;
+  source_kind: string;
+  confidence: number;
+}
+
+export interface EducationFieldCoverage extends EducationFieldCatalogItem {
+  present: boolean;
+  values: EducationFieldValue[];
+}
+
+export interface EducationFieldCatalog {
+  enquiry_fields: EducationFieldCatalogItem[];
+  application_fields: EducationFieldCatalogItem[];
+  notes: string[];
+}
+
+export interface EducationFieldSummary {
+  enquiry_fields: EducationFieldCoverage[];
+  application_fields: EducationFieldCoverage[];
+  custom_fields: Array<{ key: string; label: string; value: string; source_kind: string }>;
+  raw_metadata_fields: Array<{ key: string; value: string }>;
+  missing_required_enquiry: string[];
+  missing_required_application: string[];
+  supports_custom_fields: boolean;
+}
+
+export interface EducationDocumentDetail extends EducationDocument {
+  fields: EducationField[];
+  tags: string[];
+  source: EducationSource | null;
+  metadata: Record<string, unknown>;
+  field_summary: EducationFieldSummary;
 }

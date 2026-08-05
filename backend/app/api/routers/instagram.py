@@ -178,6 +178,17 @@ def delete_job(
     return {"status": "deleted"}
 
 
+@router.delete("/jobs")
+def delete_all_jobs(
+    db: Session = Depends(db_session),
+    _: object = Depends(require_permission(f"{MODULE}:delete")),
+):
+    """Full reset: removes every Instagram job, its DB rows (frames/questions
+    cascade) and its cached video/frame files on disk."""
+    count = ExtractionService(db).delete_all_jobs(SOURCE)
+    return {"status": "deleted", "count": count}
+
+
 @router.get("/jobs/{job_id}/frames", response_model=list[FrameOut])
 def list_frames(
     job_id: int,

@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useBranding } from "../branding/BrandingContext";
 import { MODULE_GROUPS, MODULES } from "../modules";
 import type { Notification } from "../types";
 
@@ -20,6 +21,7 @@ export default function Layout() {
   const location = useLocation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
+  const { branding } = useBranding();
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -59,8 +61,12 @@ export default function Layout() {
     <div className="qv-shell">
       <aside className={`qv-sidebar ${collapsed ? "collapsed" : ""}`}>
         <div className="qv-brand">
-          <i className="bi bi-shield-lock-fill text-primary" />
-          <span>QVault</span>
+          {branding.logo_url ? (
+            <img src={branding.logo_url} alt={branding.logo_text} className="qv-brand-logo" />
+          ) : (
+            <i className={`bi ${branding.logo_icon} qv-brand-icon`} />
+          )}
+          <span>{branding.logo_text}</span>
         </div>
         <nav className="qv-nav">
           {MODULE_GROUPS.map((group) => {
@@ -172,6 +178,11 @@ export default function Layout() {
                 <li>
                   <span className="dropdown-item-text small text-muted">
                     {user?.role?.name || (user?.is_superuser ? "Superuser" : "No role")}
+                  </span>
+                </li>
+                <li>
+                  <span className="dropdown-item-text small text-muted">
+                    {branding.tenant_name}
                   </span>
                 </li>
                 <li>

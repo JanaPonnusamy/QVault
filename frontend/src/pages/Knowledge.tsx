@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useBranding } from "../branding/BrandingContext";
+import { getModuleColor } from "../modules";
 import type {
   KnowledgeNodeDetail,
   KnowledgeSearchResult,
@@ -20,6 +22,7 @@ const NODE_ICON: Record<string, string> = {
 
 export default function Knowledge() {
   const { can } = useAuth();
+  const { branding } = useBranding();
   const canExecute = can("knowledge:execute");
 
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
@@ -111,8 +114,8 @@ export default function Knowledge() {
   }
 
   const cards = [
-    { label: "Mapped Docs", value: stats?.mapped_documents ?? 0, icon: "bi-files", color: "#2563eb" },
-    { label: "Nodes", value: stats?.nodes ?? 0, icon: "bi-diagram-3", color: "#7c3aed" },
+    { label: "Mapped Docs", value: stats?.mapped_documents ?? 0, icon: "bi-files", color: getModuleColor("knowledge", branding) },
+    { label: "Nodes", value: stats?.nodes ?? 0, icon: "bi-diagram-3", color: getModuleColor("knowledge", branding) },
     { label: "Sections", value: stats?.sections ?? 0, icon: "bi-folder", color: "#0d9488" },
     { label: "Paragraphs", value: stats?.paragraphs ?? 0, icon: "bi-text-paragraph", color: "#16a34a" },
     { label: "Tables", value: stats?.tables ?? 0, icon: "bi-table", color: "#d97706" },

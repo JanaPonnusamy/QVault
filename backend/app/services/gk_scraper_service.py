@@ -14,11 +14,13 @@ nothing here has to change for that phase to build on top).
 from __future__ import annotations
 
 import json
+import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config.settings import settings
@@ -26,7 +28,10 @@ from app.integrations.acquisition.dto import AcquisitionDocument
 from app.integrations.acquisition.providers.gk_website import GkWebsiteProvider
 from app.integrations.acquisition.providers.gk_website_parser import GkWebsiteParser
 from app.models.acquisition import AcquisitionItem, AcquisitionJob
+from app.repositories.acquisition_item_repository import AcquisitionItemRepository
 from app.repositories.acquisition_repository import AcquisitionJobRepository
+from app.repositories.gk_site_repository import GkSiteRepository
+from app.repositories.question_bank_repository import QuestionBankRepository
 from app.services import notification_service
 from app.services.acquisition_queue_service import AcquisitionQueueService
 from app.services.knowledge_service import KnowledgeService
@@ -54,11 +59,27 @@ class GkScraperService:
             job_type="gk_website_scrape",
             status="queued",
             stage="Queued",
-            payload=json.dumps({"homepage_url": homepage_url}),
+            # `node` records which machine's worker actually runs this job --
+            # relevant once a second scraper node exists (see deploy/): the
+            # DB is shared, so every node's job rows show up in everyone's
+            # UI, but only the node that received the POST has the thread
+            # actually processing it. Purely informational for the UI.
+            payload=json.dumps({"homepage_url": homepage_url, "node": socket.gethostname()}),
             created_by=user_id,
         )
         self.jobs.add(job)
         acquisition_worker.submit_job(job.id)
+        return job
+
+    def cancel_job(self, job: AcquisitionJob) -> AcquisitionJob:
+        """Marks a job failed/stopped. `run_scrape` holds no cancellation
+        checkpoint mid-crawl -- this exists for jobs whose worker thread is
+        already gone (e.g. a backend restart orphaned the DB row mid-run) and
+        just need their stuck status cleared so a fresh scan can run."""
+        job.status = "failed"
+        job.stage = "Cancelled"
+        job.error = "Cancelled by user"
+        self.jobs.save()
         return job
 
     # ---------- worker-run logic ----------
@@ -76,6 +97,12 @@ class GkScraperService:
         parser = GkWebsiteParser()
         qb = QuestionBankService(self.db)
         kb = KnowledgeService(self.db)
+
+        # Self-heal from a prior crash/restart: any item this provider left
+        # stuck mid-"downloading" (worker died before mark_downloaded/
+        # mark_failed ran) gets requeued as a retry instead of being silently
+        # dropped from every future scan.
+        self.queue.recover_stuck()
 
         job.status = "scanning"
         job.stage = "Discovering site structure"
@@ -202,12 +229,96 @@ class GkScraperService:
         job.stage = "Completed"
         job.payload = json.dumps({
             "homepage_url": homepage_url, "domain": provider.domain, "profile_path": str(profile_path),
+            "node": payload.get("node", ""),
         })
         self.jobs.save()
         notification_service.push(
             self.db, "success", "GK scrape complete",
             f"{provider.domain}: {questions_created} question(s), {pdf_docs} PDF(s) queued.", SOURCE,
         )
+
+    # ---------- reporting ----------
+
+    def site_reports(self) -> list[dict]:
+        """One row per known GK site — the seeded `gk_sites` registry (so
+        never-scanned sites show up too) merged with live counts from the
+        existing AcquisitionItem (pages/scraped/failed) and
+        BankSource/BankQuestion (questions/options) tables. Only the site
+        registry itself is a real table; every number is computed live from
+        tables that already exist, so there's nothing to keep in sync."""
+        item_repo = AcquisitionItemRepository(self.db)
+        qb_repo = QuestionBankRepository(self.db)
+        site_repo = GkSiteRepository(self.db)
+
+        provider_stats = item_repo.gk_provider_stats()
+        providers = list(provider_stats.keys())
+        qo_counts = qb_repo.provider_question_option_counts(providers)
+
+        latest_job_status = self._latest_job_status_by_url()
+
+        seen_domains: set[str] = set()
+        reports = []
+        for site in site_repo.list():
+            domain = urlparse(site.homepage_url).netloc.replace(":", "_")
+            provider = f"gk_{domain}"
+            seen_domains.add(domain)
+            stats = provider_stats.get(provider, {"total": 0, "completed": 0, "failed": 0, "last_updated": None})
+            qcount, ocount = qo_counts.get(provider, (0, 0))
+            reports.append(self._site_row(
+                domain=domain, homepage_url=site.homepage_url, stats=stats,
+                qcount=qcount, ocount=ocount, job_status=latest_job_status.get(site.homepage_url),
+            ))
+
+        # Any provider scraped ad hoc (not in the seeded registry) still shows up.
+        for provider, stats in provider_stats.items():
+            domain = provider.removeprefix("gk_")
+            if domain in seen_domains:
+                continue
+            qcount, ocount = qo_counts.get(provider, (0, 0))
+            reports.append(self._site_row(
+                domain=domain, homepage_url=f"https://{domain}", stats=stats,
+                qcount=qcount, ocount=ocount, job_status=None,
+            ))
+
+        reports.sort(key=lambda r: r["domain"])
+        return reports
+
+    def _site_row(self, *, domain: str, homepage_url: str, stats: dict, qcount: int, ocount: int, job_status: str | None) -> dict:
+        if job_status in ("queued", "scanning", "downloading"):
+            status = job_status
+        elif stats["total"] == 0:
+            status = "not_started"
+        elif stats["completed"] >= stats["total"]:
+            status = "completed"
+        else:
+            status = "partial"
+        return {
+            "domain": domain,
+            "homepage_url": homepage_url,
+            "status": status,
+            "total_pages": stats["total"],
+            "scraped_pages": stats["completed"],
+            "failed_pages": stats["failed"],
+            "questions": qcount,
+            "options": ocount,
+            "last_scanned": stats["last_updated"],
+        }
+
+    def _latest_job_status_by_url(self) -> dict[str, str]:
+        rows = self.db.execute(
+            select(AcquisitionJob.payload, AcquisitionJob.status, AcquisitionJob.id)
+            .where(AcquisitionJob.source == SOURCE)
+            .order_by(AcquisitionJob.id)
+        ).all()
+        latest: dict[str, str] = {}
+        for payload, status, _id in rows:
+            try:
+                url = json.loads(payload or "{}").get("homepage_url", "")
+            except ValueError:
+                continue
+            if url:
+                latest[url] = status
+        return latest
 
     # ---------- helpers ----------
 
@@ -237,6 +348,7 @@ class GkScraperService:
         in-memory `elements` list for the next page — one DB round trip per
         page instead of one per question."""
         created = 0
+        processed = 0
         missing_solution = 0
         source_payload = {
             "provider": provider.name,
@@ -256,7 +368,7 @@ class GkScraperService:
                 has_gap = not el.get("correct_answer_text") or not el.get("solution_text")
                 if has_gap:
                     missing_solution += 1
-                qb.create(
+                question = qb.create(
                     question_text=el["question_text"], exam=CATEGORY, question_type=el_type,
                     correct_answer_text=el.get("correct_answer_text", ""),
                     status="pending_review" if (el.get("ai_assisted") or has_gap) else "draft",
@@ -265,16 +377,20 @@ class GkScraperService:
                     solution_source_type="ai_generated" if el.get("ai_assisted") else "scraped",
                     source=source_payload, created_by=user_id, commit=False,
                 )
-                created += 1
+                processed += 1
+                if not getattr(question, "was_skipped_as_duplicate", False):
+                    created += 1
             elif el_type == "essay":
-                qb.create(
+                question = qb.create(
                     question_text=el.get("title") or document.source_url, exam=CATEGORY, question_type="essay",
                     correct_answer_text=el.get("body", ""), status="draft", confidence=0.8,
                     source=source_payload, created_by=user_id, commit=False,
                 )
-                created += 1
+                processed += 1
+                if not getattr(question, "was_skipped_as_duplicate", False):
+                    created += 1
 
-        if created:
+        if processed:
             self.db.commit()
         return created, missing_solution
 

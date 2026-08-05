@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config.knowledge_config import PIPELINE_VERSION, KnowledgeConfig
-from app.database.database_manager import ROOT
+from app.config.settings import ROOT
 from app.models.search_source import SearchSource
 from app.repositories.knowledge_research_repository import KnowledgeRepository
 from app.services import knowledge_prompts as prompts

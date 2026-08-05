@@ -3,9 +3,11 @@ import { Navigate, useNavigate } from "react-router-dom";
 
 import { apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useBranding } from "../branding/BrandingContext";
 
 export default function Login() {
   const { user, login } = useAuth();
+  const { branding } = useBranding();
   const navigate = useNavigate();
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
@@ -31,14 +33,18 @@ export default function Login() {
   return (
     <div
       className="d-flex vh-100 align-items-center justify-content-center"
-      style={{ background: "linear-gradient(135deg,#0f172a,#1e3a8a)" }}
+      style={{ background: "var(--qv-login-bg)" }}
     >
       <div className="card border-0 shadow-lg" style={{ width: 380 }}>
         <div className="card-body p-4 p-md-5">
           <div className="text-center mb-4">
-            <i className="bi bi-shield-lock-fill text-primary" style={{ fontSize: "2.4rem" }} />
-            <h4 className="mt-2 mb-0 fw-bold">QVault Admin</h4>
-            <div className="text-muted small">Exam Intelligence Platform</div>
+            {branding.logo_url ? (
+              <img src={branding.logo_url} alt={branding.logo_text} className="qv-login-logo mb-2" />
+            ) : (
+              <i className={`bi ${branding.logo_icon} qv-brand-icon`} style={{ fontSize: "2.4rem" }} />
+            )}
+            <h4 className="mt-2 mb-0 fw-bold">{branding.app_name}</h4>
+            <div className="text-muted small">{branding.tagline}</div>
           </div>
           {error && <div className="alert alert-danger py-2">{error}</div>}
           <form onSubmit={submit}>

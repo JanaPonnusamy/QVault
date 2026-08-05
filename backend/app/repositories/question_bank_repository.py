@@ -99,6 +99,29 @@ class QuestionBankRepository:
             stmt = stmt.where(BankQuestion.id != exclude_id)
         return self.db.scalar(stmt.limit(1))
 
+    def find_by_hash_for_provider(
+        self, question_hash: str, provider: str, exclude_id: uuid.UUID | None = None
+    ) -> BankQuestion | None:
+        """Same-site duplicate check: different sites are allowed to carry the
+        same GK question (each keeps its own row/source lineage) — only a
+        repeat from the SAME provider (site) counts as a true duplicate."""
+        stmt = (
+            select(BankQuestion)
+            .join(BankSource, BankQuestion.source_id == BankSource.id)
+            .where(BankQuestion.question_hash == question_hash, BankSource.provider == provider)
+        )
+        if exclude_id:
+            stmt = stmt.where(BankQuestion.id != exclude_id)
+        return self.db.scalar(stmt.limit(1))
+
+    def get_options(self, question_id: uuid.UUID) -> list[BankQuestionOption]:
+        stmt = (
+            select(BankQuestionOption)
+            .where(BankQuestionOption.question_id == question_id)
+            .order_by(BankQuestionOption.order_index)
+        )
+        return list(self.db.scalars(stmt))
+
     # ---------- sources ----------
 
     def get_or_create_source(self, provider: str, url: str, defaults: dict, commit: bool = True) -> BankSource:
@@ -133,6 +156,36 @@ class QuestionBankRepository:
         total = self.db.scalar(select(func.count()).select_from(BankSource)) or 0
         stmt = select(BankSource).order_by(BankSource.last_seen.desc()).limit(limit).offset(offset)
         return list(self.db.scalars(stmt)), int(total)
+
+    def provider_question_option_counts(self, providers: list[str]) -> dict[str, tuple[int, int]]:
+        """{provider: (question_count, option_count)} for the given source
+        providers, via bank_sources -> bank_questions -> bank_question_options.
+        Reused by GkScraperService's per-site report instead of a new table —
+        the counts already live in these two tables."""
+        if not providers:
+            return {}
+        rows = self.db.execute(
+            select(BankSource.provider, func.count(func.distinct(BankQuestion.id)), func.count(BankQuestionOption.id))
+            .join(BankQuestion, BankQuestion.source_id == BankSource.id)
+            .outerjoin(BankQuestionOption, BankQuestionOption.question_id == BankQuestion.id)
+            .where(BankSource.provider.in_(providers))
+            .group_by(BankSource.provider)
+        ).all()
+        return {provider: (int(qcount), int(ocount)) for provider, qcount, ocount in rows}
+
+    def provider_websites(self, providers: list[str]) -> dict[str, str]:
+        if not providers:
+            return {}
+        rows = self.db.execute(
+            select(BankSource.provider, BankSource.website)
+            .where(BankSource.provider.in_(providers))
+            .group_by(BankSource.provider, BankSource.website)
+        ).all()
+        result: dict[str, str] = {}
+        for provider, website in rows:
+            if website:
+                result[provider] = website
+        return result
 
     # ---------- query ----------
 

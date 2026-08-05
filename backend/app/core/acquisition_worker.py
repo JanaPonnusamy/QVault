@@ -8,7 +8,7 @@ from app.shared.logging import get_logger
 
 logger = get_logger("acquisition_worker")
 _executor = ThreadPoolExecutor(
-    max_workers=max(2, settings.ncert_concurrent_downloads + 1),
+    max_workers=max(2, settings.acquisition_job_concurrency),
     thread_name_prefix="acquisition",
 )
 

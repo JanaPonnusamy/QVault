@@ -9,6 +9,7 @@ from app.api.schemas import (
     GkProfileList,
     GkProfileOut,
     GkScanRequest,
+    GkSiteReportList,
     GkVisitedUrlList,
 )
 from app.config.settings import settings
@@ -41,6 +42,26 @@ def scan(
     if not homepage_url.lower().startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="homepage_url must start with http:// or https://")
     return GkScraperService(db).start_scan(homepage_url, user.id)
+
+
+@router.post("/jobs/{job_id}/cancel", response_model=AcquisitionJobOut)
+def cancel_job(
+    job_id: int,
+    db: Session = Depends(db_session),
+    _: object = Depends(require_permission(f"{MODULE}:execute")),
+):
+    job = AcquisitionJobRepository(db).get(job_id)
+    if not job or job.source != SOURCE:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return GkScraperService(db).cancel_job(job)
+
+
+@router.get("/site-reports", response_model=GkSiteReportList)
+def site_reports(
+    db: Session = Depends(db_session),
+    _: object = Depends(require_permission(f"{MODULE}:view")),
+):
+    return GkSiteReportList(sites=GkScraperService(db).site_reports())
 
 
 @router.get("/profiles", response_model=GkProfileList)

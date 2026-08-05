@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useBranding } from "../branding/BrandingContext";
+import { getModuleColor } from "../modules";
 import type {
   CatalogStats,
   ChapterOut,
@@ -22,6 +24,7 @@ type ChildMap<T> = Record<string, T[] | undefined>;
 
 export default function SyllabusCatalog() {
   const { can } = useAuth();
+  const { branding } = useBranding();
   const canExecute = can("catalog:execute");
 
   const [stats, setStats] = useState<CatalogStats | null>(null);
@@ -150,7 +153,7 @@ export default function SyllabusCatalog() {
   }
 
   const cards = [
-    { label: "Exams", value: stats?.exams ?? 0, icon: "bi-mortarboard", color: "#2563eb" },
+    { label: "Exams", value: stats?.exams ?? 0, icon: "bi-mortarboard", color: getModuleColor("syllabus", branding) },
     { label: "Subjects", value: stats?.subjects ?? 0, icon: "bi-book", color: "#059669" },
     { label: "Units", value: stats?.units ?? 0, icon: "bi-collection", color: "#0891b2" },
     { label: "Chapters", value: stats?.chapters ?? 0, icon: "bi-journal-text", color: "#d97706" },

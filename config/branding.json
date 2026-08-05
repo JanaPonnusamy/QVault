@@ -1,0 +1,50 @@
+{
+  "default_tenant_code": "default",
+  "tenants": {
+    "default": {
+      "tenant_code": "default",
+      "tenant_name": "Default Tenant",
+      "business_name": "QVault",
+      "app_name": "QVault Admin",
+      "tagline": "Exam Intelligence Platform",
+      "logo_text": "QVault",
+      "logo_icon": "bi-shield-lock-fill",
+      "logo_url": "",
+      "fonts": {
+        "base": "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif",
+        "heading": "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif",
+        "mono": "ui-monospace, SFMono-Regular, Consolas, monospace"
+      },
+      "theme": {
+        "background": "#f4f6fa",
+        "surface": "#ffffff",
+        "surface_alt": "#f8fafc",
+        "text": "#1e293b",
+        "muted_text": "#64748b",
+        "sidebar_background": "#0f172a",
+        "sidebar_text": "#cbd5e1",
+        "sidebar_group_text": "#64748b",
+        "accent": "#2563eb",
+        "accent_contrast": "#ffffff",
+        "border": "#e2e8f0",
+        "login_background": "linear-gradient(135deg,#0f172a,#1e3a8a)"
+      },
+      "module_colors": {
+        "dashboard": "#2563eb",
+        "youtube_extractor": "#ef4444",
+        "instagram": "#d6249f",
+        "ncert": "#0891b2",
+        "gk_scraper": "#f59e0b",
+        "education_acquisition": "#0f766e",
+        "videos": "#e11d48",
+        "documents": "#0d9488",
+        "knowledge": "#7c3aed",
+        "research": "#059669",
+        "question_bank": "#2563eb",
+        "syllabus": "#059669",
+        "users": "#2563eb",
+        "roles": "#9333ea"
+      }
+    }
+  }
+}

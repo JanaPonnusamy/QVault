@@ -90,6 +90,16 @@ class GkWebsiteProvider(AcquisitionProvider):
         return hashlib.sha256(url.encode()).hexdigest()[:40]
 
     def _filename(self, url: str, is_pdf: bool) -> str:
+        # Capped to 80 chars: some sites (examveda's quiz-question slugs
+        # especially) put the entire question text in the URL, 150-200+
+        # chars long. Combined with the storage/acquisition/<provider>/
+        # <exam>/<year>/<source_id>/ prefix, an uncapped name pushed the full
+        # path past Windows' 260-char MAX_PATH -- write_bytes then failed
+        # with ENOENT ("No such file or directory"), which is exactly the
+        # error every one of examveda's failed pages was hitting. source_id
+        # is already the real unique key (a URL hash), so the visible name
+        # only needs to stay short and readable, not unique.
         name = Path(urlparse(url).path).name or hashlib.sha256(url.encode()).hexdigest()[:16]
+        name = name[:80]
         ext = ".pdf" if is_pdf else ".html"
         return name if name.lower().endswith(ext) else name + ext

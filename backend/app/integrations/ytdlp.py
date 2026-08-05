@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -8,6 +9,22 @@ from app.config.settings import settings
 from app.shared.logging import get_logger
 
 logger = get_logger("ytdlp")
+
+_INSTAGRAM_REELS_RE = re.compile(r"^(https?://(?:www\.)?instagram\.com)/reels/([^/?#]+)")
+
+
+def _normalize_instagram_url(url: str) -> str:
+    """Instagram's own app links share reels as `/reels/<code>/` (the
+    reels-feed viewer route), but that path isn't a stable single-post
+    permalink -- yt-dlp's Instagram extractor resolves it as a feed entry
+    point and can come back with an unrelated reel instead of the one the
+    user pasted. `/reel/<code>/` (singular) is the canonical single-post
+    permalink and always resolves to the exact post, so rewrite before
+    handing the URL to yt-dlp."""
+    match = _INSTAGRAM_REELS_RE.match(url)
+    if not match:
+        return url
+    return f"{match.group(1)}/reel/{match.group(2)}/"
 
 
 class CookieSource:
@@ -81,6 +98,8 @@ class YtDlp:
         """Metadata-only probe (no download) -- used to estimate frame counts
         before a job runs. Falls back to zeros if the source can't be probed
         (estimate becomes advisory only; the job itself still runs normally)."""
+        if source == "instagram":
+            url = _normalize_instagram_url(url)
         opts = {"quiet": True, "no_warnings": True, "noplaylist": True, "skip_download": True}
         CookieSource(source).apply(opts)
         try:
@@ -95,6 +114,8 @@ class YtDlp:
 
     @staticmethod
     def download_video(url: str, output_dir: Path, source: str | None = None) -> dict:
+        if source == "instagram":
+            url = _normalize_instagram_url(url)
         output_dir.mkdir(parents=True, exist_ok=True)
         opts = {
             "format": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",

@@ -13,8 +13,16 @@ router = APIRouter(prefix="/api/research", tags=["knowledge-research"])
 
 MODULE = "research"
 
-# Shared instance so all requests use one executor pool and one repository.
-_service = KnowledgeResearchService()
+# Shared instance so all requests use one executor pool and one repository,
+# but created lazily so app import/startup never depends on a database write.
+_service: KnowledgeResearchService | None = None
+
+
+def _get_service() -> KnowledgeResearchService:
+    global _service
+    if _service is None:
+        _service = KnowledgeResearchService()
+    return _service
 
 # Provider model lists change rarely; cache them briefly so the UI can reload
 # the dropdown without hitting the provider on every visit.
@@ -90,7 +98,7 @@ def create_session(
     _: object = Depends(require_permission(f"{MODULE}:execute")),
 ):
     try:
-        session_id = _service.start_session(
+        session_id = _get_service().start_session(
             mode=request.mode,
             input_value=request.input_value,
             source_count=request.source_count,
@@ -111,10 +119,11 @@ def cancel_session(
     session_id: int,
     _: object = Depends(require_permission(f"{MODULE}:execute")),
 ):
-    if not _service.get_session(session_id):
+    service = _get_service()
+    if not service.get_session(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _service.cancel_session(session_id)
+    session = service.cancel_session(session_id)
 
     if not session:
         raise HTTPException(
@@ -130,7 +139,7 @@ def delete_session(
     _: object = Depends(require_permission(f"{MODULE}:execute")),
 ):
     try:
-        deleted = _service.delete_session(session_id)
+        deleted = _get_service().delete_session(session_id)
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error))
 
@@ -151,7 +160,7 @@ def list_sessions(
     _: object = Depends(require_permission(f"{MODULE}:view")),
 ):
     return {
-        "sessions": _service.list_sessions(
+        "sessions": _get_service().list_sessions(
             status=status or None,
             topic=topic or None,
             date_from=date_from or None,
@@ -167,7 +176,7 @@ def get_session(
     session_id: int,
     _: object = Depends(require_permission(f"{MODULE}:view")),
 ):
-    session = _service.get_session(session_id)
+    session = _get_service().get_session(session_id)
 
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -180,7 +189,7 @@ def get_results(
     session_id: int,
     _: object = Depends(require_permission(f"{MODULE}:view")),
 ):
-    results = _service.get_results(session_id)
+    results = _get_service().get_results(session_id)
 
     if not results:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -193,10 +202,11 @@ def get_facts(
     session_id: int,
     _: object = Depends(require_permission(f"{MODULE}:view")),
 ):
-    if not _service.get_session(session_id):
+    service = _get_service()
+    if not service.get_session(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
 
-    return {"facts": _service.repo.list_facts_by_session(session_id)}
+    return {"facts": service.repo.list_facts_by_session(session_id)}
 
 
 @router.get("/sessions/{session_id}/entities")
@@ -204,10 +214,11 @@ def get_entities(
     session_id: int,
     _: object = Depends(require_permission(f"{MODULE}:view")),
 ):
-    if not _service.get_session(session_id):
+    service = _get_service()
+    if not service.get_session(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
 
-    return {"entities": _service.repo.list_entities_by_session(session_id)}
+    return {"entities": service.repo.list_entities_by_session(session_id)}
 
 
 @router.get("/sessions/{session_id}/consensus")
@@ -215,9 +226,10 @@ def get_consensus(
     session_id: int,
     _: object = Depends(require_permission(f"{MODULE}:view")),
 ):
-    if not _service.get_session(session_id):
+    service = _get_service()
+    if not service.get_session(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
 
-    results = _service.get_results(session_id)
+    results = service.get_results(session_id)
 
     return {"consensus": results["consensus"]}

@@ -8,6 +8,8 @@ import type {
   EducationDocument,
   EducationDocumentDetail,
   EducationDocumentList,
+  EducationFieldCatalog,
+  EducationFieldCoverage,
   EducationSource,
   EducationSourceList,
   EducationStats,
@@ -51,6 +53,7 @@ export default function EducationAcquisition() {
   ]);
   const [jobs, setJobs] = useState<AcquisitionJob[]>([]);
   const [stats, setStats] = useState<EducationStats>({ sources: 0, documents: 0, fields: 0, forms: 0 });
+  const [fieldCatalog, setFieldCatalog] = useState<EducationFieldCatalog>({ enquiry_fields: [], application_fields: [], notes: [] });
   const [sources, setSources] = useState<EducationSource[]>([]);
   const [documents, setDocuments] = useState<EducationDocument[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<EducationDocumentDetail | null>(null);
@@ -71,6 +74,11 @@ export default function EducationAcquisition() {
     setStats(res.data);
   }, []);
 
+  const loadFieldCatalog = useCallback(async () => {
+    const res = await api.get<EducationFieldCatalog>("/api/sources/education/field-catalog");
+    setFieldCatalog(res.data);
+  }, []);
+
   const loadSources = useCallback(async () => {
     const res = await api.get<EducationSourceList>("/api/sources/education/sources", { params: { limit: 10, offset: 0 } });
     setSources(res.data.items);
@@ -87,14 +95,14 @@ export default function EducationAcquisition() {
   }, []);
 
   const refreshAll = useCallback(async () => {
-    await Promise.all([loadJobs(), loadStats(), loadSources(), loadDocuments()]);
-  }, [loadJobs, loadStats, loadSources, loadDocuments]);
+    await Promise.all([loadJobs(), loadStats(), loadFieldCatalog(), loadSources(), loadDocuments()]);
+  }, [loadJobs, loadStats, loadFieldCatalog, loadSources, loadDocuments]);
 
   const startPolling = useCallback(() => {
     if (pollRef.current) window.clearInterval(pollRef.current);
     const tick = async () => {
       const currentJobs = await loadJobs();
-      await Promise.all([loadStats(), loadSources(), loadDocuments()]);
+      await Promise.all([loadStats(), loadFieldCatalog(), loadSources(), loadDocuments()]);
       const active = currentJobs.some((j) => ["queued", "scanning", "downloading"].includes(j.status));
       if (!active && pollRef.current) {
         window.clearInterval(pollRef.current);
@@ -105,7 +113,7 @@ export default function EducationAcquisition() {
     pollRef.current = window.setInterval(() => {
       tick().catch((e) => setError(apiError(e)));
     }, 3000);
-  }, [loadDocuments, loadJobs, loadSources, loadStats]);
+  }, [loadDocuments, loadFieldCatalog, loadJobs, loadSources, loadStats]);
 
   useEffect(() => {
     refreshAll().then(() => {
@@ -189,6 +197,29 @@ export default function EducationAcquisition() {
         <StatCard label="Documents" value={stats.documents} icon="bi-file-earmark-text" />
         <StatCard label="Fields" value={stats.fields} icon="bi-tags" />
         <StatCard label="Forms" value={stats.forms} icon="bi-ui-checks-grid" />
+      </div>
+
+      <div className="card border-0 shadow-sm mb-3">
+        <div className="card-header bg-white fw-semibold">Admission Field Blueprint</div>
+        <div className="card-body">
+          <div className="row g-3">
+            <div className="col-lg-4">
+              <div className="small fw-semibold mb-2">Enquiry Stage</div>
+              <FieldBlueprintList fields={fieldCatalog.enquiry_fields} />
+            </div>
+            <div className="col-lg-8">
+              <div className="small fw-semibold mb-2">Application Stage</div>
+              <FieldBlueprintList fields={fieldCatalog.application_fields} />
+            </div>
+          </div>
+          {fieldCatalog.notes.length > 0 && (
+            <div className="alert alert-light border mt-3 mb-0 small">
+              {fieldCatalog.notes.map((note) => (
+                <div key={note}>{note}</div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {canExecute && (
@@ -320,6 +351,84 @@ export default function EducationAcquisition() {
                       {selectedDocument.tags.map((tag) => <span className="badge bg-light text-dark border" key={tag}>{tag}</span>)}
                     </div>
                   </div>
+                  <div className="row g-3 mb-3">
+                    <div className="col-lg-5">
+                      <div className="border rounded p-3 h-100">
+                        <div className="fw-semibold small mb-2">Enquiry Coverage</div>
+                        <FieldCoverageTable
+                          fields={selectedDocument.field_summary.enquiry_fields}
+                          missing={selectedDocument.field_summary.missing_required_enquiry}
+                        />
+                      </div>
+                    </div>
+                    <div className="col-lg-7">
+                      <div className="border rounded p-3 h-100">
+                        <div className="fw-semibold small mb-2">Application Coverage</div>
+                        <FieldCoverageTable
+                          fields={selectedDocument.field_summary.application_fields}
+                          missing={selectedDocument.field_summary.missing_required_application}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="row g-3 mb-3">
+                    <div className="col-lg-6">
+                      <div className="border rounded p-3 h-100">
+                        <div className="fw-semibold small mb-2">Custom School Fields</div>
+                        {selectedDocument.field_summary.custom_fields.length === 0 ? (
+                          <div className="small text-muted">No extra custom fields yet.</div>
+                        ) : (
+                          <div className="table-responsive">
+                            <table className="table table-sm mb-0">
+                              <thead>
+                                <tr>
+                                  <th>Field</th>
+                                  <th>Value</th>
+                                  <th>Source</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {selectedDocument.field_summary.custom_fields.map((field) => (
+                                  <tr key={`${field.key}-${field.label}`}>
+                                    <td className="small">{field.label}</td>
+                                    <td className="small text-break">{field.value || "-"}</td>
+                                    <td className="small text-muted">{field.source_kind}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="col-lg-6">
+                      <div className="border rounded p-3 h-100">
+                        <div className="fw-semibold small mb-2">Metadata Preserved</div>
+                        {selectedDocument.field_summary.raw_metadata_fields.length === 0 ? (
+                          <div className="small text-muted">No extra metadata preserved.</div>
+                        ) : (
+                          <div className="table-responsive">
+                            <table className="table table-sm mb-0">
+                              <thead>
+                                <tr>
+                                  <th>Key</th>
+                                  <th>Value</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {selectedDocument.field_summary.raw_metadata_fields.map((field) => (
+                                  <tr key={field.key}>
+                                    <td className="small">{field.key}</td>
+                                    <td className="small text-break">{field.value}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                   <div className="table-responsive">
                     <table className="table table-sm">
                       <thead>
@@ -350,6 +459,66 @@ export default function EducationAcquisition() {
         </div>
       </div>
     </div>
+  );
+}
+
+function FieldBlueprintList({ fields }: { fields: EducationFieldCatalog["enquiry_fields"] }) {
+  return (
+    <div className="table-responsive">
+      <table className="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Req.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {fields.map((field) => (
+            <tr key={field.key}>
+              <td className="small">
+                <div className="fw-semibold">{field.label}</div>
+                <div className="text-muted">{field.description}</div>
+              </td>
+              <td className="small">{field.required ? "Yes" : "No"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FieldCoverageTable({ fields, missing }: { fields: EducationFieldCoverage[]; missing: string[] }) {
+  return (
+    <>
+      {missing.length > 0 && (
+        <div className="alert alert-warning py-2 small">
+          Missing required: {missing.join(", ")}
+        </div>
+      )}
+      <div className="table-responsive">
+        <table className="table table-sm mb-0">
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Present</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fields.map((field) => (
+              <tr key={field.key}>
+                <td className="small">{field.label}</td>
+                <td className="small">{field.present ? "Yes" : "No"}</td>
+                <td className="small text-break">
+                  {field.values.length > 0 ? field.values.map((item) => item.value || item.label).join(", ") : "-"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 

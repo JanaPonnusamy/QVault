@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, apiError, getToken } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useBranding } from "../branding/BrandingContext";
 import JobProgress from "../components/JobProgress";
+import { getModuleColor } from "../modules";
 import type {
   AcquisitionJob,
   TimelinePreview,
@@ -43,6 +45,7 @@ function fmtSize(bytes: number): string {
 
 export default function VideoGeneration() {
   const { can } = useAuth();
+  const { branding } = useBranding();
   const canExecute = can("videos:execute");
   const canDelete = can("videos:delete");
   const canExport = can("videos:export");
@@ -216,7 +219,7 @@ export default function VideoGeneration() {
   const pages = Math.ceil(total / PAGE_SIZE);
 
   const cards = [
-    { label: "Total Videos", value: stats?.total ?? 0, icon: "bi-camera-video", color: "#e11d48" },
+    { label: "Total Videos", value: stats?.total ?? 0, icon: "bi-camera-video", color: getModuleColor("videos", branding) },
     { label: "Completed", value: stats?.completed ?? 0, icon: "bi-check-circle", color: "#16a34a" },
     { label: "In Progress", value: stats?.in_progress ?? 0, icon: "bi-hourglass-split", color: "#0891b2" },
     { label: "Failed", value: stats?.failed ?? 0, icon: "bi-x-circle", color: "#dc2626" },

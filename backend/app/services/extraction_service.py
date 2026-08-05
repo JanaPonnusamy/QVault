@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import shutil
 import sqlite3
 import tempfile
 from pathlib import Path
@@ -117,7 +118,18 @@ class ExtractionService:
         return self.repo.list_jobs(source)
 
     def delete_job(self, job: ExtractionJob) -> None:
+        job_dir = settings.jobs_dir / str(job.id)
         self.repo.delete_job(job)
+        if job_dir.is_dir():
+            shutil.rmtree(job_dir, ignore_errors=True)
+
+    def delete_all_jobs(self, source: str) -> int:
+        """Wipe every job for a source -- DB rows (frames/questions cascade)
+        and their on-disk video/frame files -- for a full reset."""
+        jobs = self.repo.list_jobs(source)
+        for job in jobs:
+            self.delete_job(job)
+        return len(jobs)
 
     def list_frames(self, job_id: int) -> list[Frame]:
         return self.repo.list_frames(job_id)

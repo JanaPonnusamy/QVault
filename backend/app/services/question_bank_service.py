@@ -71,6 +71,14 @@ class QuestionBankService:
         self.db = db
         self.repo = QuestionBankRepository(db)
 
+    def _options_match(self, question_id: uuid.UUID, new_options: list[dict]) -> bool:
+        existing = self.repo.get_options(question_id)
+        if len(existing) != len(new_options):
+            return False
+        existing_set = {(normalize_text(o.text), bool(o.is_correct)) for o in existing}
+        new_set = {(normalize_text(o.get("text", "")), bool(o.get("is_correct", False))) for o in new_options}
+        return existing_set == new_set
+
     def create(
         self,
         *,
@@ -103,7 +111,34 @@ class QuestionBankService:
         worth of questions and commits once instead of once per question."""
         norm = normalize_text(question_text)
         h = question_hash(question_text)
-        duplicate = self.repo.find_by_hash(h)
+        provider = (source or {}).get("provider", "")
+        # Duplicate scope is per-site (provider), not global: two different
+        # GK sites are allowed to carry the identical question (each keeps
+        # its own row + source lineage) — only a repeat from the SAME site
+        # counts as a true duplicate. Manual entries (no source) still use
+        # the old global check since there's no site to scope by.
+        duplicate = self.repo.find_by_hash_for_provider(h, provider) if provider else self.repo.find_by_hash(h)
+
+        # Same normalized question AND same options (e.g. the identical GK
+        # item re-appearing on a different compilation page of the SAME site,
+        # or a page re-scraped after its site changed unrelated content) is a
+        # true repeat, not a new draft: skip the insert entirely and just
+        # touch the source's crawl_count/last_seen so acquisition history
+        # still reflects the re-visit. A hash match with *different* options
+        # is kept as a flagged duplicate below, since that's a real edit
+        # worth a human's review rather than noise to silently drop.
+        if duplicate and self._options_match(duplicate.id, options or []):
+            if source and source.get("url"):
+                self.repo.get_or_create_source(
+                    provider=source.get("provider", "manual"),
+                    url=source["url"],
+                    defaults={k: v for k, v in source.items() if k not in ("provider", "url")},
+                    commit=commit,
+                )
+            elif commit:
+                self.db.commit()
+            duplicate.was_skipped_as_duplicate = True
+            return duplicate
 
         source_obj = None
         if source and source.get("url"):

@@ -113,6 +113,23 @@ class AcquisitionItem(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
 
+class GkSite(Base):
+    """Curated registry of GK/current-affairs sites the GK Scraper knows
+    about — seeded with the top Indian competitive-exam prep sites so the
+    Sites Report grid can show every candidate site (including ones never
+    scanned yet), not just ones an admin happened to already run a scan on.
+    """
+
+    __tablename__ = "gk_sites"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(Unicode(120))
+    homepage_url: Mapped[str] = mapped_column(Unicode(500), unique=True)
+    category: Mapped[str] = mapped_column(Unicode(120), default="General Knowledge")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
 class Notification(Base):
     __tablename__ = "notifications"
 

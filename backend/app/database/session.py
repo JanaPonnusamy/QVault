@@ -5,11 +5,24 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config.settings import settings
 
+_pool_kwargs = {}
+if not settings.is_sqlite:
+    # SQLAlchemy's default pool (size 5 + 10 overflow = 15 connections) is too
+    # small once several acquisition jobs run in parallel: GkScraperService
+    # holds one Session/connection checked out for its ENTIRE run (a full
+    # site scan, potentially long), so 3-4 concurrent site scans alone can
+    # eat most of the default pool and start starving ordinary API requests
+    # (they'd queue for a free connection instead of failing fast). Sized for
+    # the remote SQL Server target (mssql_server, not local) under this
+    # worker-concurrency load.
+    _pool_kwargs = {"pool_size": 20, "max_overflow": 20, "pool_timeout": 30}
+
 engine = create_engine(
     settings.sqlalchemy_url,
     connect_args={"check_same_thread": False} if settings.is_sqlite else {},
     pool_pre_ping=not settings.is_sqlite,
     future=True,
+    **_pool_kwargs,
 )
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)

@@ -17,11 +17,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     api_host: str = "127.0.0.1"
-    # 8000 is permanently reserved by an unrelated app (NEXORA) on this
-    # machine -- QVault always runs on 8004 (see CLAUDE.md).
-    api_port: int = 8004
+    # 8000 and 8004 are already used by other local apps on this machine;
+    # QVault runs on 8005 by default to avoid clashes.
+    api_port: int = 8005
 
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_origins: str = "http://localhost:5174,http://127.0.0.1:5174"
 
     # --- Database ---
     # db_backend selects the target; an explicit database_url overrides everything.
@@ -34,9 +34,11 @@ class Settings(BaseSettings):
     mssql_user: str = "sa"
     mssql_password: str = "Admin123"
     mssql_driver: str = "ODBC Driver 17 for SQL Server"
+    mssql_encrypt: bool = False
     mssql_trust_cert: bool = True
 
     storage_dir: Path = ROOT / "storage"
+    branding_config_path: Path = ROOT / "config" / "branding.json"
 
     jwt_secret: str = "change-me-in-production-qvault-secret-key"
     jwt_algorithm: str = "HS256"
@@ -87,6 +89,17 @@ class Settings(BaseSettings):
     ncert_concurrent_downloads: int = 2
     ncert_timeout: int = 60
 
+    # Worker-thread pool shared by every acquisition job type (NCERT, GK
+    # scraper, education, video render, ...) — see app/core/acquisition_worker.py.
+    # Each GK site scan is one job here; this cap is how many SITES can run
+    # concurrently (independent of gk_scraper_concurrency, which is the
+    # per-job page-fetch concurrency within a single site's scan). 6 was
+    # tried and starved the API (mssql_server is a remote box, not local —
+    # 6 sites x 20-30 fetch threads each hammering it at once made ordinary
+    # requests like /api/system/branding hang); 4 concurrent sites is the
+    # sustainable ceiling measured against that same remote SQL Server.
+    acquisition_job_concurrency: int = 4
+
     # --- GK Scraper (generic site analyzer) ---
     # A site's real inventory (up to gk_scraper_pool_size pages) is discovered
     # and enqueued, and a single Start Scan run fetches/parses every one of
@@ -99,9 +112,14 @@ class Settings(BaseSettings):
     # raised to cover the real site, not an arbitrary fraction of it.
     gk_scraper_pool_size: int = 65000
     gk_scraper_timeout: int = 20
-    # Matches the proven concurrency level from the user's own prior scrapers
-    # (examveda_fast_scraper.py / gktoday_scraper_parallel.py: Pool(8), no delay).
-    gk_scraper_concurrency: int = 8
+    # Prior scrapers (examveda_fast_scraper.py / gktoday_scraper_parallel.py)
+    # used Pool(8) for a single site at a time. Raised to 15 for headroom
+    # over that baseline, but capped well below 30: this database is a
+    # remote SQL Server (mssql_server), and with multiple sites scanning at
+    # once (acquisition_job_concurrency) each contributing this many
+    # concurrent DB-writing page completions, going higher (30 was tried)
+    # saturated it badly enough that ordinary API requests started hanging.
+    gk_scraper_concurrency: int = 15
     gk_scraper_request_delay: float = 0.0
 
     admin_username: str = "admin"
@@ -180,8 +198,9 @@ class Settings(BaseSettings):
             f"DATABASE={database}",
             f"UID={self.mssql_user}",
             f"PWD={self.mssql_password}",
+            f"Encrypt={'yes' if self.mssql_encrypt else 'no'}",
         ]
-        if self.mssql_trust_cert:
+        if self.mssql_encrypt and self.mssql_trust_cert:
             parts.append("TrustServerCertificate=yes")
         return ";".join(parts) + ";"
 
@@ -232,5 +251,7 @@ settings.gk_scraper_dir.mkdir(parents=True, exist_ok=True)
 settings.education_dir.mkdir(parents=True, exist_ok=True)
 settings.acquisition_dir.mkdir(parents=True, exist_ok=True)
 (ROOT / "database").mkdir(parents=True, exist_ok=True)
+if not settings.branding_config_path.is_absolute():
+    settings.branding_config_path = (ROOT / settings.branding_config_path).resolve()
 for _sub in ("videos", "shorts", "reels", ".work"):
     (settings.output_dir / _sub).mkdir(parents=True, exist_ok=True)

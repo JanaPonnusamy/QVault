@@ -309,6 +309,7 @@ class AcquisitionJobOut(BaseModel):
     total: int
     processed: int
     error: str
+    payload: str = ""
     created_at: datetime
     updated_at: datetime
 
@@ -1031,6 +1032,22 @@ class GkVisitedUrlList(BaseModel):
     items: list[GkVisitedUrlOut]
 
 
+class GkSiteReportOut(BaseModel):
+    domain: str
+    homepage_url: str
+    status: str
+    total_pages: int
+    scraped_pages: int
+    failed_pages: int
+    questions: int
+    options: int
+    last_scanned: datetime | None = None
+
+
+class GkSiteReportList(BaseModel):
+    sites: list[GkSiteReportOut]
+
+
 # ---------- Education Acquisition ----------
 
 EDUCATION_PROVIDER_CODES = {
@@ -1126,10 +1143,48 @@ class EducationFieldOut(BaseModel):
     order_index: int
 
 
+class EducationFieldCatalogItemOut(BaseModel):
+    key: str
+    label: str
+    stage: str
+    required: bool
+    description: str
+
+
+class EducationFieldValueOut(BaseModel):
+    value: str
+    label: str
+    source_kind: str
+    confidence: float
+
+
+class EducationFieldCoverageOut(EducationFieldCatalogItemOut):
+    present: bool = False
+    values: list[EducationFieldValueOut] = []
+
+
+class EducationFieldCatalogOut(BaseModel):
+    enquiry_fields: list[EducationFieldCatalogItemOut] = []
+    application_fields: list[EducationFieldCatalogItemOut] = []
+    notes: list[str] = []
+
+
+class EducationFieldSummaryOut(BaseModel):
+    enquiry_fields: list[EducationFieldCoverageOut] = []
+    application_fields: list[EducationFieldCoverageOut] = []
+    custom_fields: list[dict] = []
+    raw_metadata_fields: list[dict] = []
+    missing_required_enquiry: list[str] = []
+    missing_required_application: list[str] = []
+    supports_custom_fields: bool = True
+
+
 class EducationDocumentDetail(EducationDocumentOut):
     fields: list[EducationFieldOut] = []
     tags: list[str] = []
     source: EducationSourceOut | None = None
+    metadata: dict = {}
+    field_summary: EducationFieldSummaryOut = Field(default_factory=EducationFieldSummaryOut)
 
 
 class EducationDocumentList(BaseModel):
@@ -1137,3 +1192,40 @@ class EducationDocumentList(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# ---------- Branding / Tenant UI ----------
+
+class BrandingFontsOut(BaseModel):
+    base: str
+    heading: str
+    mono: str
+
+
+class BrandingThemeOut(BaseModel):
+    background: str
+    surface: str
+    surface_alt: str
+    text: str
+    muted_text: str
+    sidebar_background: str
+    sidebar_text: str
+    sidebar_group_text: str
+    accent: str
+    accent_contrast: str
+    border: str
+    login_background: str
+
+
+class BrandingConfigOut(BaseModel):
+    tenant_code: str
+    tenant_name: str
+    business_name: str
+    app_name: str
+    tagline: str
+    logo_text: str
+    logo_icon: str
+    logo_url: str
+    fonts: BrandingFontsOut
+    theme: BrandingThemeOut
+    module_colors: dict[str, str] = {}

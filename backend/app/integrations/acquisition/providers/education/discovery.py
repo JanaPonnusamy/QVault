@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import re
 import xml.etree.ElementTree as ET
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import parse_qs, quote_plus, urljoin, urlparse
+from urllib.parse import parse_qs, quote_plus, unquote, urljoin, urlparse
 from urllib.robotparser import RobotFileParser
 
 from bs4 import BeautifulSoup
@@ -20,6 +21,57 @@ _SEARCH_FILE_EXTENSIONS = (".pdf", ".doc", ".docx", ".zip", ".xml", ".rss", ".tx
 _SKIP_EXTENSIONS = (
     ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".css", ".js",
     ".woff", ".woff2", ".ico", ".mp4", ".mp3",
+)
+_ALLOWED_SEARCH_SUFFIXES = (".edu.in", ".ac.in", ".gov.in", ".nic.in", ".org.in")
+_ALLOWED_SEARCH_HOSTS = {
+    "cbse.gov.in",
+    "cisce.org",
+    "education.gov.in",
+    "ncert.nic.in",
+}
+_BLOCKED_SEARCH_HOST_PARTS = (
+    "bing.com",
+    "duckduckgo.com",
+    "google.com",
+    "wikipedia.org",
+    "justdial.com",
+    "schooldekho.org",
+    "targetstudy.com",
+    "extramarks.com",
+    "scribd.com",
+    "swisstransfer.com",
+    "wetransfer.com",
+    "transfernow.net",
+    "transfer.it",
+    "fromsmash.com",
+    "filetransfer.io",
+    "send-anywhere.com",
+    "skysports.com",
+)
+_EDUCATION_HOST_TERMS = (
+    "school",
+    "college",
+    "university",
+    "institute",
+    "vidyalaya",
+    "education",
+    "polytechnic",
+    "academy",
+    "campus",
+)
+_EDUCATION_PATH_TERMS = (
+    "admission",
+    "prospectus",
+    "fee",
+    "calendar",
+    "school",
+    "college",
+    "university",
+    "education",
+    "notification",
+    "circular",
+    "brochure",
+    "form",
 )
 
 
@@ -207,9 +259,20 @@ class SearchResultProvider(EducationDiscoveryProvider):
             if not result or not result.text:
                 continue
             for url in self._extract_urls(result):
-                if url.startswith("http") and url not in seen:
-                    seen.add(url)
-                    yield self._doc(url, metadata={"origin": "search", "query": query, "search_provider": self.label})
+                normalized = _normalize_search_result_url(url)
+                if not _is_relevant_search_target(normalized):
+                    continue
+                if normalized not in seen:
+                    seen.add(normalized)
+                    yield self._doc(
+                        normalized,
+                        metadata={
+                            "origin": "search",
+                            "query": query,
+                            "search_provider": self.label,
+                            "discovered_url": url,
+                        },
+                    )
                 if len(seen) >= self.max_results:
                     return
 
@@ -367,6 +430,61 @@ def _crawl(root_url: str, max_pages: int) -> list[str]:
             if len(seen) >= max_pages * 3:
                 break
     return found
+
+
+def _normalize_search_result_url(url: str) -> str:
+    target = url.strip()
+    if not target.startswith("http"):
+        return ""
+    parsed = urlparse(target)
+    host = parsed.netloc.lower()
+
+    if host.endswith("bing.com") and parsed.path.startswith("/ck/a"):
+        qs = parse_qs(parsed.query)
+        encoded = qs.get("u", [""])[0]
+        decoded = _decode_bing_target(encoded)
+        return decoded or target
+
+    if host.endswith("duckduckgo.com") and parsed.path.startswith("/l/"):
+        qs = parse_qs(parsed.query)
+        uddg = qs.get("uddg", [""])[0]
+        return unquote(uddg) if uddg.startswith("http") or uddg.startswith("https") else target
+
+    return target
+
+
+def _decode_bing_target(value: str) -> str:
+    raw = value.strip()
+    if not raw:
+        return ""
+    if raw.startswith("a1"):
+        raw = raw[2:]
+    try:
+        padding = "=" * (-len(raw) % 4)
+        decoded = base64.b64decode(raw + padding).decode("utf-8", errors="ignore")
+    except Exception:
+        return ""
+    return decoded if decoded.startswith("http") else ""
+
+
+def _is_relevant_search_target(url: str) -> bool:
+    if not url.startswith("http"):
+        return False
+    parsed = urlparse(url)
+    host = parsed.netloc.lower().strip(".")
+    path = f"{parsed.path} {parsed.query}".lower()
+
+    if not host:
+        return False
+    if any(blocked in host for blocked in _BLOCKED_SEARCH_HOST_PARTS):
+        return False
+    if host in _ALLOWED_SEARCH_HOSTS or host.endswith(_ALLOWED_SEARCH_SUFFIXES):
+        return True
+    if host.endswith(".in") and any(term in host for term in _EDUCATION_HOST_TERMS):
+        return True
+    if host.endswith(".in") and any(term in path for term in _EDUCATION_PATH_TERMS):
+        return True
+    return False
 
 
 @dataclass

@@ -39,6 +39,19 @@ KNOWN_PLUGINS = {
     # wrapper variants match.
     "sques_quiz": ("wp_quiz_question_options", "ques_answer"),
     "wp_basic_quiz": ("load_quiz_container", "wp_basic_quiz"),
+    # Examveda: multiple <article class="question single-question"> blocks
+    # per page (topic hub pages are paginated question listings, not mere
+    # navigation), each with the correct-answer index already in a hidden
+    # input (id="answer_<qid>") right in the static HTML -- no AJAX needed.
+    # Confirmed against the user's own prior working scraper for this site.
+    "examveda_quiz": ("single-question", 'id="answer_'),
+    # Examveda's single-question detail pages (a different template than the
+    # topic-hub listing above -- no static answer-index input here): question
+    # + "A./B./C./D." options sit in .question-desc, and the free-text
+    # worked solution sits in a separate .sq-answer block elsewhere on the
+    # page. See _extract_examveda_detail in gk_extractors.py for how the
+    # correct option is recovered from that solution text.
+    "examveda_detail": ("question-desc", "sq-answer"),
 }
 
 _BLANK_RE = re.compile(r"_{3,}|\.{5,}")
@@ -79,8 +92,19 @@ _QUIZ_URL_HINTS = ("quiz", "mcq", "gk-questions", "gk-quiz")
 # results just because their slug happens to contain "quiz" (e.g.
 # "/pdfs/category/daily-current-affairs-quiz-pdf-compilations/"). Excluded
 # outright rather than merely deprioritized.
+#
+# examveda.com specifically: /mcq-question-on-<topic>/ is a pure topic-index
+# hub (confirmed live, twice, on different topics: 167 category links, zero
+# question content) -- yet its slug contains "mcq", which _QUIZ_URL_HINTS
+# below is precisely tuned to chase. Left in, these hubs get front-loaded
+# ahead of examveda's REAL question pages (whose slugs are plain descriptive
+# text with no "mcq"/"quiz" keyword at all, e.g. "ajit-has-a-certain-
+# average-.../"), so the vast majority of early-processed pages ended up
+# being content-free navigation. Excluded outright, same as the other
+# hub-only patterns here.
 _EXCLUDE_URL_RE = re.compile(
     r"/author/|/pdfs/category/|/module-category/|/category/|/tag/|/hindi/section/"
+    r"|examveda\.com/mcq-question-on-[a-z0-9-]+/?$"
 )
 
 def discover_urls(homepage_url: str, max_pages: int) -> DiscoveryResult:
@@ -90,6 +114,17 @@ def discover_urls(homepage_url: str, max_pages: int) -> DiscoveryResult:
     # at a specific page they already know is relevant — always include it,
     # even if a capped sitemap pool wouldn't otherwise surface it.
     seed_url = homepage_url if parsed.path not in ("", "/") else None
+
+    # examveda.com: real question content lives on paginated topic-hub pages
+    # (10 questions/page), not on the tens of thousands of per-question detail
+    # pages its own sitemap also lists (see _examveda_hub_urls docstring) —
+    # handled entirely separately from the generic sitemap/crawl path below,
+    # same as the legacy scraper this replaces.
+    if "examveda.com" in parsed.netloc:
+        hub_urls = _examveda_hub_urls(origin, max(max_pages, 2000))
+        if hub_urls:
+            pages = _expand_examveda_pagination(hub_urls, max_pages)
+            return DiscoveryResult(pages=[DiscoveredPage(url=u, origin="sitemap") for u in pages], method="sitemap")
 
     # The raw sitemap pool cap used to be a hardcoded 2000, silently
     # overriding gk_scraper_pool_size (a real site can have 50,000+ pages —
@@ -130,6 +165,67 @@ def _prioritize(urls: list[str], seed_url: str | None, max_pages: int) -> list[D
         add(url)
 
     return [DiscoveredPage(url=u, origin="sitemap") for u in ordered[:max_pages]]
+
+
+def _examveda_hub_urls(origin: str, pool_cap: int) -> list[str]:
+    """examveda's sitemap index splits content into one "url-set" sitemap
+    (~1000 real topic-hub pages, e.g. ".../arithmetic-ability/practice-mcq-
+    question-on-average/") and 60+ "N-question-set" sitemaps (8000+ per-
+    question detail-page URLs each) that duplicate the exact same questions
+    one page per question. Confirmed live: the hub pages are the paginated
+    listings the user's legacy scraper targeted (?page=N, ~10 questions/page,
+    same markup the `examveda_quiz` plugin already parses); the individual
+    detail-page URLs from the question-set sitemaps are excluded outright
+    here rather than merely deprioritized, since crawling them was the whole
+    cause of "total pages" ballooning far ahead of actual questions scraped."""
+    index = fetch(f"{origin}/sitemap.xml")
+    if not index or not index.text:
+        return []
+    try:
+        root = ET.fromstring(index.text)
+    except ET.ParseError:
+        return []
+
+    children = [el.text.strip() for el in root.iter() if el.tag.lower().endswith("loc") and el.text]
+    hub_sitemaps = [c for c in children if "url-set" in c.lower() and "question-set" not in c.lower()]
+
+    urls: list[str] = []
+    for child_url in hub_sitemaps:
+        child = fetch(child_url)
+        if not child or not child.text:
+            continue
+        try:
+            child_root = ET.fromstring(child.text)
+        except ET.ParseError:
+            continue
+        for el in child_root.iter():
+            if el.tag.lower().endswith("loc") and el.text and "practice-mcq-question-on" in el.text:
+                urls.append(el.text.strip())
+        if len(urls) >= pool_cap:
+            break
+    return urls[:pool_cap]
+
+
+def _expand_examveda_pagination(hub_urls: list[str], max_pages: int) -> list[str]:
+    """Each hub page only shows its first ~10 questions; the rest live on
+    `?page=2`, `?page=3`, ... with no static indicator of how many pages
+    exist, so pagination is discovered by fetching pages in order until one
+    comes back without the `single-question` marker (same stop condition the
+    legacy scraper used)."""
+    pages: list[str] = []
+    for hub_url in hub_urls:
+        pages.append(hub_url)
+        if len(pages) >= max_pages:
+            break
+        page_num = 2
+        while len(pages) < max_pages:
+            paged_url = f"{hub_url}?page={page_num}"
+            result = fetch(paged_url)
+            if not result or not result.text or "single-question" not in result.text:
+                break
+            pages.append(paged_url)
+            page_num += 1
+    return pages
 
 
 def _from_sitemap(origin: str, pool_cap: int) -> list[str]:

@@ -105,20 +105,20 @@ Everything must be designed so new modules can be added without redesign.
 
 ### Running the project
 ```
-# Backend  -> http://127.0.0.1:8004
+# Backend  -> http://127.0.0.1:8005
 cd E:\QVault\backend
 pip install -r requirements.txt
-python -m uvicorn app.main:app --reload --port 8004
+python -m uvicorn app.main:app --reload --port 8005
 
-# Frontend -> http://localhost:5173
+# Frontend -> http://localhost:5174
 cd E:\QVault\frontend
 npm install
 npm run dev
 ```
 Port 8000 is permanently reserved by an unrelated app (NEXORA) on this machine
-— QVault's backend always runs on **8004** (never 8000); `frontend/vite.config.ts`'s
-dev proxy already targets `127.0.0.1:8004` to match. Do not change either back to
-8000.
+and port 8004 is already used by another local app as well, so QVault's backend
+always runs on **8005**; `frontend/vite.config.ts`'s dev proxy already targets
+`127.0.0.1:8005` to match. Do not change either back to 8000/8004.
 
 Default login: **admin / admin123**. FFmpeg must be on PATH. NCERT scraping uses
 `curl_cffi` (browser-TLS) because NCERT's WAF resets plain Python TLS.

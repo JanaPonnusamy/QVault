@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api, apiError, getToken } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useBranding } from "../branding/BrandingContext";
 import ConfidenceBadge, { QuestionStatusBadge } from "../components/ConfidenceBadge";
 import ExtractionStrategySelector from "../components/ExtractionStrategySelector";
 import JobProgress, { StatusBadge } from "../components/JobProgress";
+import { getModuleColor } from "../modules";
 import { DEFAULT_EXTRACTION_OPTIONS } from "../types";
 import type { ExtractionOptions, Frame, InstagramLoginStatus, InstagramStats, Job, Question } from "../types";
 
@@ -46,6 +48,7 @@ function ClassBadges({ tags }: { tags?: string[] }) {
 
 export default function InstagramAcquisition() {
   const { can } = useAuth();
+  const { branding } = useBranding();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [stats, setStats] = useState<InstagramStats | null>(null);
   const [url, setUrl] = useState("");
@@ -268,6 +271,19 @@ export default function InstagramAcquisition() {
     }
   }
 
+  async function clearAllJobs() {
+    if (!window.confirm("Delete every Instagram acquisition, cached video, and frame? This cannot be undone.")) {
+      return;
+    }
+    try {
+      await api.delete(`${BASE}/jobs`);
+      setSelectedId(null);
+      await loadJobs();
+    } catch (err) {
+      setError(apiError(err));
+    }
+  }
+
   function toggleFrame(id: number) {
     setSelectedFrames((prev) => {
       const next = new Set(prev);
@@ -442,7 +458,7 @@ export default function InstagramAcquisition() {
       {stats && (
         <div className="row g-2 mb-3">
           {[
-            { label: "Acquisitions", value: stats.total, icon: "bi-collection", color: "#d6249f" },
+            { label: "Acquisitions", value: stats.total, icon: "bi-collection", color: getModuleColor("instagram", branding) },
             { label: "Completed", value: stats.completed, icon: "bi-check-circle", color: "#16a34a" },
             { label: "Processing", value: stats.processing, icon: "bi-arrow-repeat", color: "#2563eb" },
             { label: "Failed", value: stats.failed, icon: "bi-exclamation-triangle", color: "#dc2626" },
@@ -693,12 +709,20 @@ export default function InstagramAcquisition() {
           <div className="card border-0 shadow-sm">
             <div className="card-header bg-white d-flex justify-content-between align-items-center">
               <span className="fw-semibold">Acquisitions</span>
-              {selectedId !== null && readyJobs.length > 0 && (
-                <button className="btn btn-sm btn-outline-secondary" onClick={() => setSelectedId(null)}>
-                  <i className="bi bi-play-circle me-1" style={{ color: "#d6249f" }} />
-                  Reels Feed
-                </button>
-              )}
+              <div className="d-flex gap-2">
+                {selectedId !== null && readyJobs.length > 0 && (
+                  <button className="btn btn-sm btn-outline-secondary" onClick={() => setSelectedId(null)}>
+                    <i className="bi bi-play-circle me-1" style={{ color: "#d6249f" }} />
+                    Reels Feed
+                  </button>
+                )}
+                {canDelete && jobs.length > 0 && (
+                  <button className="btn btn-sm btn-outline-danger" onClick={clearAllJobs}>
+                    <i className="bi bi-trash3 me-1" />
+                    Clear all
+                  </button>
+                )}
+              </div>
             </div>
             <div className="list-group list-group-flush" style={{ maxHeight: 460, overflowY: "auto" }}>
               {jobs.length === 0 && <div className="p-3 text-muted small">No acquisitions yet.</div>}

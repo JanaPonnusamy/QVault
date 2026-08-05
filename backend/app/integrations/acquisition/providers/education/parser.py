@@ -43,6 +43,7 @@ FIELD_ALIASES = {
     "emergency_contact": ["emergency contact"],
     "medical_history": ["medical history", "medical information"],
 }
+GENERIC_FORM_LABELS = {"search", "search here", "keyword", "query", "site search"}
 
 CLASSIFICATION_KEYWORDS = {
     "admission_form": ["admission form", "application form", "apply now", "registration form"],
@@ -115,7 +116,9 @@ def _parse_html(document: AcquisitionDocument) -> EducationParsedDocument:
     text = Path(document.local_file or "").read_text(encoding="utf-8", errors="ignore")
     soup = BeautifulSoup(text, "html.parser")
     title = (soup.title.string.strip() if soup.title and soup.title.string else "")
-    meta = _extract_basic_metadata(soup.get_text("\n", strip=True))
+    page_text = soup.get_text("\n", strip=True)
+    signal_text = _signal_text(page_text)
+    meta = _extract_basic_metadata(signal_text)
     institution_name = meta.get("institution_name") or _first_non_empty(
         title,
         _text_of(soup.find("h1")),
@@ -123,21 +126,23 @@ def _parse_html(document: AcquisitionDocument) -> EducationParsedDocument:
     )
     form_fields = _extract_html_form_fields(soup)
     table_fields = _extract_table_fields(soup)
-    classification = _classify_document(title + "\n" + soup.get_text(" ", strip=True))
+    classification = _classify_document(title + "\n" + signal_text)
     source_kind = document.metadata.get("source_kind") or document.metadata.get("origin", "website")
+    board = _board_from(title, signal_text)
+    institution_type = _institution_type_from(title, signal_text, document.source_url, board)
     return EducationParsedDocument(
         title=title or institution_name or document.source_url,
         classification=classification,
-        summary=_summarize_text(soup.get_text("\n", strip=True)),
+        summary=_summarize_text(signal_text),
         institution_name=institution_name,
-        institution_type=_institution_type_from(title, soup.get_text(" ", strip=True), document.source_url),
-        board=_board_from(soup.get_text(" ", strip=True)),
-        state=_state_from(soup.get_text(" ", strip=True)),
+        institution_type=institution_type,
+        board=board,
+        state=_state_from(signal_text),
         district="",
-        is_government=".gov.in" in document.source_url or "government" in soup.get_text(" ", strip=True).lower(),
+        is_government=".gov.in" in document.source_url or "government" in signal_text.lower(),
         metadata={**meta, "source_kind": source_kind},
         fields=_merge_fields(meta, form_fields, table_fields),
-        tags=[classification, source_kind, *_tag_words(title, soup.get_text(" ", strip=True))],
+        tags=[classification, source_kind, *_tag_words(title, signal_text, institution_type, board)],
     )
 
 
@@ -151,22 +156,25 @@ def _parse_pdf(document: AcquisitionDocument) -> EducationParsedDocument:
             for row in element.extra["rows"]:
                 parts.append(" | ".join(str(cell or "").strip() for cell in row))
     text = "\n".join(parts)
-    meta = _extract_basic_metadata(text)
+    signal_text = _signal_text(text)
+    meta = _extract_basic_metadata(signal_text)
     if extracted.needs_ocr:
         meta["needs_ocr"] = "true"
+    board = _board_from("", signal_text)
+    institution_type = _institution_type_from("", signal_text, document.source_url, board)
     return EducationParsedDocument(
         title=Path(document.local_file or document.source_url).name,
-        classification=_classify_document(text),
-        summary=_summarize_text(text),
+        classification=_classify_document(signal_text),
+        summary=_summarize_text(signal_text),
         institution_name=meta.get("institution_name", ""),
-        institution_type=_institution_type_from("", text, document.source_url),
-        board=_board_from(text),
-        state=_state_from(text),
+        institution_type=institution_type,
+        board=board,
+        state=_state_from(signal_text),
         district="",
-        is_government=".gov.in" in document.source_url or "government" in text.lower(),
+        is_government=".gov.in" in document.source_url or "government" in signal_text.lower(),
         metadata=meta,
-        fields=_merge_fields(meta, _extract_line_fields(text), _extract_table_like_fields(text)),
-        tags=_tag_words(Path(document.local_file or document.source_url).name, text),
+        fields=_merge_fields(meta, _extract_line_fields(signal_text), _extract_table_like_fields(signal_text)),
+        tags=_tag_words(Path(document.local_file or document.source_url).name, signal_text, institution_type, board),
         warnings=["needs_ocr"] if extracted.needs_ocr else [],
     )
 
@@ -183,42 +191,48 @@ def _parse_docx(document: AcquisitionDocument) -> EducationParsedDocument:
     except Exception:
         text_parts.append("")
     text = "\n".join(text_parts)
-    meta = _extract_basic_metadata(text)
+    signal_text = _signal_text(text)
+    meta = _extract_basic_metadata(signal_text)
+    board = _board_from("", signal_text)
+    institution_type = _institution_type_from("", signal_text, document.source_url, board)
     return EducationParsedDocument(
         title=Path(document.local_file or document.source_url).name,
-        classification=_classify_document(text),
-        summary=_summarize_text(text),
+        classification=_classify_document(signal_text),
+        summary=_summarize_text(signal_text),
         institution_name=meta.get("institution_name", ""),
-        institution_type=_institution_type_from("", text, document.source_url),
-        board=_board_from(text),
-        state=_state_from(text),
+        institution_type=institution_type,
+        board=board,
+        state=_state_from(signal_text),
         district="",
-        is_government=".gov.in" in document.source_url or "government" in text.lower(),
+        is_government=".gov.in" in document.source_url or "government" in signal_text.lower(),
         metadata=meta,
-        fields=_merge_fields(meta, _extract_line_fields(text)),
-        tags=_tag_words(Path(document.local_file or document.source_url).name, text),
+        fields=_merge_fields(meta, _extract_line_fields(signal_text)),
+        tags=_tag_words(Path(document.local_file or document.source_url).name, signal_text, institution_type, board),
     )
 
 
 def _parse_image(document: AcquisitionDocument) -> EducationParsedDocument:
     text, confidence = OCR.read_image_detailed(document.local_file or "")
-    meta = _extract_basic_metadata(text)
-    fields = _merge_fields(meta, _extract_line_fields(text))
+    signal_text = _signal_text(text)
+    meta = _extract_basic_metadata(signal_text)
+    fields = _merge_fields(meta, _extract_line_fields(signal_text))
     if confidence < 0.6 and text.strip():
-        fields.extend(_llm_form_fields(text))
+        fields.extend(_llm_form_fields(signal_text))
+    board = _board_from("", signal_text)
+    institution_type = _institution_type_from("", signal_text, document.source_url, board)
     return EducationParsedDocument(
         title=Path(document.local_file or document.source_url).name,
-        classification=_classify_document(text),
-        summary=_summarize_text(text),
+        classification=_classify_document(signal_text),
+        summary=_summarize_text(signal_text),
         institution_name=meta.get("institution_name", ""),
-        institution_type=_institution_type_from("", text, document.source_url),
-        board=_board_from(text),
-        state=_state_from(text),
+        institution_type=institution_type,
+        board=board,
+        state=_state_from(signal_text),
         district="",
-        is_government=".gov.in" in document.source_url or "government" in text.lower(),
+        is_government=".gov.in" in document.source_url or "government" in signal_text.lower(),
         metadata={**meta, "ocr_confidence": confidence},
         fields=fields,
-        tags=_tag_words(Path(document.local_file or document.source_url).name, text),
+        tags=_tag_words(Path(document.local_file or document.source_url).name, signal_text, institution_type, board),
     )
 
 
@@ -229,20 +243,23 @@ def _parse_xml(document: AcquisitionDocument) -> EducationParsedDocument:
 
 def _parse_txt(document: AcquisitionDocument) -> EducationParsedDocument:
     text = Path(document.local_file or "").read_text(encoding="utf-8", errors="ignore")
-    meta = _extract_basic_metadata(text)
+    signal_text = _signal_text(text)
+    meta = _extract_basic_metadata(signal_text)
+    board = _board_from("", signal_text)
+    institution_type = _institution_type_from("", signal_text, document.source_url, board)
     return EducationParsedDocument(
         title=Path(document.local_file or document.source_url).name,
-        classification=_classify_document(text),
-        summary=_summarize_text(text),
+        classification=_classify_document(signal_text),
+        summary=_summarize_text(signal_text),
         institution_name=meta.get("institution_name", ""),
-        institution_type=_institution_type_from("", text, document.source_url),
-        board=_board_from(text),
-        state=_state_from(text),
+        institution_type=institution_type,
+        board=board,
+        state=_state_from(signal_text),
         district="",
-        is_government=".gov.in" in document.source_url or "government" in text.lower(),
+        is_government=".gov.in" in document.source_url or "government" in signal_text.lower(),
         metadata=meta,
-        fields=_merge_fields(meta, _extract_line_fields(text)),
-        tags=_tag_words(Path(document.local_file or document.source_url).name, text),
+        fields=_merge_fields(meta, _extract_line_fields(signal_text)),
+        tags=_tag_words(Path(document.local_file or document.source_url).name, signal_text, institution_type, board),
     )
 
 
@@ -258,7 +275,7 @@ def _parse_zip(document: AcquisitionDocument) -> EducationParsedDocument:
 
 
 def _extract_basic_metadata(text: str) -> dict:
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    lines = [_clean_line(line) for line in text.splitlines() if _clean_line(line)]
     emails = EMAIL_RE.findall(text)
     phones = PHONE_RE.findall(text)
     metadata = {
@@ -282,6 +299,8 @@ def _extract_html_form_fields(soup: BeautifulSoup) -> list[dict]:
             label = _label_for(control, soup) or name
             canonical = _canonicalize_field(label or name)
             if not canonical:
+                continue
+            if canonical == "search" or _is_generic_field(label, name):
                 continue
             fields.append({
                 "canonical_key": canonical,
@@ -423,30 +442,40 @@ def _canonicalize_field(label: str) -> str:
 
 def _classify_document(text: str) -> str:
     lowered = text.lower()
+    if "direct admission" in lowered or "admission of students" in lowered:
+        return "admission_policy"
     for key, phrases in CLASSIFICATION_KEYWORDS.items():
         if any(phrase in lowered for phrase in phrases):
             return key
     return "general"
 
 
-def _institution_type_from(title: str, text: str, url: str) -> str:
+def _institution_type_from(title: str, text: str, url: str, board: str = "") -> str:
     lowered = f"{title} {text} {url}".lower()
+    if ".gov.in" in lowered or "district " in lowered or "government of " in lowered or "education department" in lowered:
+        return "government_portal"
     if "university" in lowered:
         return "university"
     if "college" in lowered or "institute" in lowered:
         return "college"
     if "school" in lowered:
         return "school"
-    if ".gov.in" in lowered or "board" in lowered or "education department" in lowered:
-        return "government_portal"
+    if board in {"CBSE", "ICSE", "State Board"} or "board of secondary education" in lowered:
+        return "board"
     return "education"
 
 
-def _board_from(text: str) -> str:
-    lowered = text.lower()
+def _board_from(title: str, text: str) -> str:
+    title_lowered = title.lower()
+    text_lowered = text.lower()
+    matches: list[str] = []
     for board, phrases in BOARD_KEYWORDS.items():
-        if any(phrase in lowered for phrase in phrases):
+        if any(phrase in title_lowered for phrase in phrases):
             return board
+        if any(phrase in text_lowered for phrase in phrases):
+            matches.append(board)
+    if len(set(matches)) == 1:
+        return matches[0]
     return ""
 
 
@@ -469,7 +498,7 @@ def _source_key(url: str) -> str:
     return (parsed.netloc + ("/" + path[0] if path and path[0] else "")).lower()
 
 
-def _tag_words(title: str, text: str) -> list[str]:
+def _tag_words(title: str, text: str, institution_type: str, board: str) -> list[str]:
     lowered = f"{title} {text}".lower()
     tags = []
     for candidate in (
@@ -479,7 +508,14 @@ def _tag_words(title: str, text: str) -> list[str]:
     ):
         if candidate.replace("_", " ") in lowered:
             tags.append(candidate)
-    return tags
+    filtered = []
+    for tag in tags:
+        if institution_type == "government_portal" and tag in {"arts", "commerce", "engineering", "medical", "private"}:
+            continue
+        if not board and tag in {"cbse", "icse", "state_board"}:
+            continue
+        filtered.append(tag)
+    return filtered
 
 
 def _tags_from(parsed: EducationParsedDocument) -> list[str]:
@@ -523,3 +559,32 @@ def _first_non_empty(*values: str) -> str:
         if value and value.strip():
             return value.strip()
     return ""
+
+
+def _signal_text(text: str, line_limit: int = 120) -> str:
+    cleaned = [_clean_line(line) for line in text.splitlines()]
+    useful: list[str] = []
+    for line in cleaned:
+        if not line:
+            continue
+        lowered = line.lower()
+        if lowered in {"search", "search here...", "site map", "social media links", "accessibility links"}:
+            continue
+        if "click here if the page does not redirect automatically" in lowered:
+            continue
+        useful.append(line)
+        if len(useful) >= line_limit:
+            break
+    return "\n".join(useful)
+
+
+def _clean_line(value: str) -> str:
+    return value.replace("\ufeff", "").strip()
+
+
+def _is_generic_field(label: str, name: str) -> bool:
+    combined = re.sub(r"[^a-z0-9 ]+", " ", f"{label} {name}".lower()).strip()
+    if combined in GENERIC_FORM_LABELS:
+        return True
+    parts = [part for part in combined.split() if part]
+    return bool(parts) and all(part in {"search", "site", "query", "keyword", "find"} for part in parts)
